@@ -54,3 +54,8 @@ INSERT INTO Recruitment VALUES (2, '2024-02-20', 'Hired', 2, 1, 102);
 
 INSERT INTO Meeting VALUES (1, '2024-03-20', '10:00:00', 'Planning', 10);
 INSERT INTO Meeting VALUES (2, '2024-03-22', '11:00:00', 'Review', 20);
+
+INSERT INTO users (username, password, role) VALUES
+('admin1', 'admin123', 'admin'),
+('emp1', 'emp123', 'employee'),
+('emp2', 'emp123', 'employee');

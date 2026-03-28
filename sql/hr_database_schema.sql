@@ -183,3 +183,10 @@ CREATE TABLE Meeting (
     dept_id INT,
     FOREIGN KEY (dept_id) REFERENCES Department(department_id)
 );
+
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) NOT NULL,
+    password VARCHAR(50) NOT NULL,
+    role VARCHAR(20) NOT NULL
+);
