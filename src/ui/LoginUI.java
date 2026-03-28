@@ -78,7 +78,7 @@ public class LoginUI {
                 if (user.getRole().equalsIgnoreCase("admin")) {
                     new AdminDashboard();
                 } else {
-                    new EmployeeDashboard();
+                    new EmployeeDashboard(user);
                 }
             }
         });
