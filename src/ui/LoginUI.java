@@ -76,7 +76,7 @@ public class LoginUI {
                 frame.dispose();
 
                 if (user.getRole().equalsIgnoreCase("admin")) {
-                    new AdminDashboard();
+                    new AdminDashboard(user);
                 } else {
                     new EmployeeDashboard(user);
                 }
