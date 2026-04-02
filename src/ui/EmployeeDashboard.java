@@ -160,7 +160,7 @@ public class EmployeeDashboard {
 
             if (rs.next()) {
                 JPanel headerPanel = new JPanel();
-                headerPanel.setBackground(new Color(41, 128, 185));
+                headerPanel.setBackground(new Color(82, 195, 247));
                 JLabel nameLabel = new JLabel(rs.getString("Emp_name"));
                 nameLabel.setFont(new Font("Arial", Font.BOLD, 24));
                 nameLabel.setForeground(Color.WHITE);
