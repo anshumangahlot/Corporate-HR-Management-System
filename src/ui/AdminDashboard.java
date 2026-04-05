@@ -9,6 +9,7 @@ import java.awt.*;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.UUID;
 
 public class AdminDashboard {
 
@@ -207,7 +208,7 @@ public class AdminDashboard {
 
         addBtn.addActionListener(e -> addEmployee());
         editBtn.addActionListener(e -> editEmployee(table, model));
-        removeBtn.addActionListener(e -> removeEmployee());
+        removeBtn.addActionListener(e -> removeEmployee(table, model));
 
         bottomPanel.add(addBtn);
         bottomPanel.add(editBtn);
@@ -263,7 +264,7 @@ public class AdminDashboard {
 
         addBtn.addActionListener(e -> addDepartment());
         editBtn.addActionListener(e -> editDepartment(table, model));
-        removeBtn.addActionListener(e -> removeDepartment());
+        removeBtn.addActionListener(e -> removeDepartment(table, model));
 
         bottomPanel.add(addBtn);
         bottomPanel.add(editBtn);
@@ -325,7 +326,7 @@ public class AdminDashboard {
 
         addBtn.addActionListener(e -> addRole());
         editBtn.addActionListener(e -> editRole(table, model));
-        removeBtn.addActionListener(e -> removeRole());
+        removeBtn.addActionListener(e -> removeRole(table, model));
 
         bottomPanel.add(addBtn);
         bottomPanel.add(editBtn);
@@ -530,33 +531,129 @@ public class AdminDashboard {
                 nextId = idRs.getInt("next_id");
             }
 
-            // Get all employees
-            String empQuery = "SELECT EmpID FROM Employee";
-            PreparedStatement empPs = con.prepareStatement(empQuery);
-            ResultSet empRs = empPs.executeQuery();
-
-            int inserted = 0;
-            while (empRs.next()) {
-                int empId = empRs.getInt("EmpID");
-                double salary = 50000; // Default salary
-                String transId = "TXN-" + System.currentTimeMillis();
-
-                String insertQuery = "INSERT INTO Payroll (payroll_id, paydate, total_amount, transaction_id, EmpID) VALUES (?, ?, ?, ?, ?)";
-                PreparedStatement insertPs = con.prepareStatement(insertQuery);
-                insertPs.setInt(1, nextId++);
-                insertPs.setString(2, payDate);
-                insertPs.setDouble(3, salary);
-                insertPs.setString(4, transId);
-                insertPs.setInt(5, empId);
-                insertPs.executeUpdate();
-                inserted++;
+            EmployeeSelection selectedEmployee = chooseEmployeeForPayroll(con);
+            if (selectedEmployee == null) {
+                return;
             }
 
-            JOptionPane.showMessageDialog(frame, "Payroll generated for " + inserted + " employees");
+            String empQuery = "SELECT e.Emp_name, COALESCE(j.base_salary, 0) AS base_salary " +
+                    "FROM Employee e " +
+                    "LEFT JOIN Job_Role j ON e.role_id = j.role_id " +
+                    "WHERE e.EmpID = ?";
+
+            try (PreparedStatement empPs = con.prepareStatement(empQuery);
+                 PreparedStatement insertPs = con.prepareStatement(
+                         "INSERT INTO Payroll (payroll_id, paydate, total_amount, transaction_id, EmpID) VALUES (?, ?, ?, ?, ?)"
+                 )) {
+
+                empPs.setInt(1, selectedEmployee.empId);
+                try (ResultSet empRs = empPs.executeQuery()) {
+                    if (!empRs.next()) {
+                        JOptionPane.showMessageDialog(frame, "Employee not found.");
+                        return;
+                    }
+
+                    String empName = empRs.getString("Emp_name");
+                    double suggestedSalary = empRs.getDouble("base_salary");
+                    Double salary = promptSalaryForEmployee(empName, suggestedSalary);
+
+                    if (salary == null) {
+                        return;
+                    }
+
+                    String transId = "TXN-" + selectedEmployee.empId + "-" + UUID.randomUUID().toString().substring(0, 8);
+
+                    insertPs.setInt(1, nextId);
+                    insertPs.setString(2, payDate);
+                    insertPs.setDouble(3, salary);
+                    insertPs.setString(4, transId);
+                    insertPs.setInt(5, selectedEmployee.empId);
+                    insertPs.executeUpdate();
+
+                    JOptionPane.showMessageDialog(frame, "Payroll generated for " + empName + " (ID: " + selectedEmployee.empId + ")");
+                }
+            }
             showPayroll();
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(frame, "Error generating payroll: " + e.getMessage());
+        }
+    }
+
+    private EmployeeSelection chooseEmployeeForPayroll(Connection con) throws Exception {
+        DefaultComboBoxModel<EmployeeSelection> model = new DefaultComboBoxModel<>();
+        String query = "SELECT e.EmpID, e.Emp_name FROM Employee e ORDER BY e.EmpID";
+
+        try (PreparedStatement ps = con.prepareStatement(query);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                model.addElement(new EmployeeSelection(rs.getInt("EmpID"), rs.getString("Emp_name")));
+            }
+        }
+
+        if (model.getSize() == 0) {
+            JOptionPane.showMessageDialog(frame, "No employees found.");
+            return null;
+        }
+
+        JComboBox<EmployeeSelection> employeeBox = new JComboBox<>(model);
+        employeeBox.setSelectedIndex(0);
+
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.add(new JLabel("Select Employee:"), BorderLayout.NORTH);
+        panel.add(employeeBox, BorderLayout.CENTER);
+
+        int result = JOptionPane.showConfirmDialog(frame, panel, "Select Employee for Payroll", JOptionPane.OK_CANCEL_OPTION);
+        if (result != JOptionPane.OK_OPTION) {
+            return null;
+        }
+
+        return (EmployeeSelection) employeeBox.getSelectedItem();
+    }
+
+    private Double promptSalaryForEmployee(String employeeName, double suggestedSalary) {
+        while (true) {
+            String input = JOptionPane.showInputDialog(
+                    frame,
+                    "Enter salary for " + employeeName + ":",
+                    String.valueOf(suggestedSalary)
+            );
+
+            if (input == null) {
+                return null;
+            }
+
+            String trimmed = input.trim();
+            if (trimmed.isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "Salary cannot be empty.");
+                continue;
+            }
+
+            try {
+                double salary = Double.parseDouble(trimmed);
+                if (salary < 0) {
+                    JOptionPane.showMessageDialog(frame, "Salary must be zero or greater.");
+                    continue;
+                }
+                return salary;
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(frame, "Please enter a valid salary amount.");
+            }
+        }
+    }
+
+    private static class EmployeeSelection {
+        private final int empId;
+        private final String empName;
+
+        private EmployeeSelection(int empId, String empName) {
+            this.empId = empId;
+            this.empName = empName;
+        }
+
+        @Override
+        public String toString() {
+            return empId + " - " + empName;
         }
     }
 
@@ -1134,14 +1231,17 @@ public class AdminDashboard {
         }
     }
 
-    private void removeEmployee() {
-        String empId = JOptionPane.showInputDialog(frame, "Enter Employee ID to remove:");
-        if (empId == null || empId.trim().isEmpty()) {
+    private void removeEmployee(JTable table, DefaultTableModel model) {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(frame, "Please select an employee");
             return;
         }
 
+        int empId = (int) model.getValueAt(row, 0);
+
         int result = JOptionPane.showConfirmDialog(frame, 
-                "Are you sure you want to remove employee " + empId + "?", 
+                "Are you sure you want to remove employee " + empId + "?",
                 "Confirm Remove", JOptionPane.YES_NO_OPTION);
         
         if (result != JOptionPane.YES_OPTION) {
@@ -1151,42 +1251,44 @@ public class AdminDashboard {
         try (Connection con = DBConnection.getConnection()) {
             con.setAutoCommit(false);
 
+            int deletedPayrollRows = 0;
+
             // Delete related records first
             String deleteProjectsQuery = "DELETE FROM Employee_Projects WHERE EmpID = ?";
             PreparedStatement deleteProjectsPs = con.prepareStatement(deleteProjectsQuery);
-            deleteProjectsPs.setInt(1, Integer.parseInt(empId));
+            deleteProjectsPs.setInt(1, empId);
             deleteProjectsPs.executeUpdate();
 
             String deleteAttendanceQuery = "DELETE FROM Attendance_Log WHERE EmpID = ?";
             PreparedStatement deleteAttendancePs = con.prepareStatement(deleteAttendanceQuery);
-            deleteAttendancePs.setInt(1, Integer.parseInt(empId));
+            deleteAttendancePs.setInt(1, empId);
             deleteAttendancePs.executeUpdate();
 
             String deleteLeaveQuery = "DELETE FROM Leave_Request WHERE EmpID = ?";
             PreparedStatement deleteLeavePs = con.prepareStatement(deleteLeaveQuery);
-            deleteLeavePs.setInt(1, Integer.parseInt(empId));
+            deleteLeavePs.setInt(1, empId);
             deleteLeavePs.executeUpdate();
 
             String deletePayrollQuery = "DELETE FROM Payroll WHERE EmpID = ?";
             PreparedStatement deletePayrollPs = con.prepareStatement(deletePayrollQuery);
-            deletePayrollPs.setInt(1, Integer.parseInt(empId));
-            deletePayrollPs.executeUpdate();
+            deletePayrollPs.setInt(1, empId);
+            deletedPayrollRows = deletePayrollPs.executeUpdate();
 
             String deletePhonesQuery = "DELETE FROM Employee_Phones WHERE EmpID = ?";
             PreparedStatement deletePhonesPs = con.prepareStatement(deletePhonesQuery);
-            deletePhonesPs.setInt(1, Integer.parseInt(empId));
+            deletePhonesPs.setInt(1, empId);
             deletePhonesPs.executeUpdate();
 
             // Delete the employee
             String deleteEmpQuery = "DELETE FROM Employee WHERE EmpID = ?";
             PreparedStatement deleteEmpPs = con.prepareStatement(deleteEmpQuery);
-            deleteEmpPs.setInt(1, Integer.parseInt(empId));
+            deleteEmpPs.setInt(1, empId);
             int rows = deleteEmpPs.executeUpdate();
 
             if (rows > 0) {
                 String deleteUserQuery = "DELETE FROM users WHERE id = ? AND role = ?";
                 PreparedStatement deleteUserPs = con.prepareStatement(deleteUserQuery);
-                deleteUserPs.setInt(1, Integer.parseInt(empId));
+                deleteUserPs.setInt(1, empId);
                 deleteUserPs.setString(2, "employee");
                 deleteUserPs.executeUpdate();
             }
@@ -1466,19 +1568,14 @@ public class AdminDashboard {
         }
     }
 
-    private void removeDepartment() {
-        String deptIdInput = JOptionPane.showInputDialog(frame, "Enter Department ID to remove:");
-        if (deptIdInput == null || deptIdInput.trim().isEmpty()) {
+    private void removeDepartment(JTable table, DefaultTableModel model) {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(frame, "Please select a department");
             return;
         }
 
-        int deptId;
-        try {
-            deptId = Integer.parseInt(deptIdInput.trim());
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(frame, "Department ID must be a number");
-            return;
-        }
+        int deptId = (int) model.getValueAt(row, 0);
 
         int result = JOptionPane.showConfirmDialog(
                 frame,
@@ -1699,19 +1796,14 @@ public class AdminDashboard {
         }
     }
 
-    private void removeRole() {
-        String roleIdInput = JOptionPane.showInputDialog(frame, "Enter Role ID to remove:");
-        if (roleIdInput == null || roleIdInput.trim().isEmpty()) {
+    private void removeRole(JTable table, DefaultTableModel model) {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(frame, "Please select a role");
             return;
         }
 
-        int roleId;
-        try {
-            roleId = Integer.parseInt(roleIdInput.trim());
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(frame, "Role ID must be a number");
-            return;
-        }
+        int roleId = (int) model.getValueAt(row, 0);
 
         int result = JOptionPane.showConfirmDialog(
                 frame,
