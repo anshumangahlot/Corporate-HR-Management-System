@@ -17,7 +17,9 @@ CREATE TABLE Employee (
     ZipCode INT,
     role_id INT NOT NULL ,
     department_id INT NOT NULL,
-    FOREIGN KEY (ZipCode) REFERENCES Zip_Directory(ZipCode)
+    FOREIGN KEY (ZipCode) REFERENCES Zip_Directory(ZipCode),
+    FOREIGN KEY (department_id) REFERENCES Department(department_id),
+    FOREIGN KEY (role_id) REFERENCES Job_Role(role_id)
 );
 
 CREATE TABLE Employee_Phones (
