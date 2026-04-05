@@ -1789,10 +1789,42 @@ public class AdminDashboard {
             JTextField streetField = new JTextField(rs.getString("Street"));
             JTextField phoneField1 = new JTextField();
             JTextField phoneField2 = new JTextField();
-            JTextField deptField = new JTextField(rs.getObject("department_id") == null ? "" : String.valueOf(rs.getInt("department_id")));
-            JTextField roleField = new JTextField(rs.getObject("role_id") == null ? "" : String.valueOf(rs.getInt("role_id")));
+            JComboBox<IdNameOption> deptField = new JComboBox<>();
+            JComboBox<IdNameOption> roleField = new JComboBox<>();
             JPasswordField passwordField = new JPasswordField();
             JTextField usernameField = new JTextField();
+
+            loadDepartmentOptions(con, deptField);
+            loadRoleOptions(con, roleField);
+
+            if (deptField.getItemCount() == 0) {
+                JOptionPane.showMessageDialog(frame, "No departments available. Please add a department first.");
+                return;
+            }
+
+            if (roleField.getItemCount() == 0) {
+                JOptionPane.showMessageDialog(frame, "No roles available. Please add a role first.");
+                return;
+            }
+
+            int currentDepartmentId = rs.getObject("department_id") == null ? -1 : rs.getInt("department_id");
+            int currentRoleId = rs.getObject("role_id") == null ? -1 : rs.getInt("role_id");
+
+            for (int i = 0; i < deptField.getItemCount(); i++) {
+                IdNameOption option = deptField.getItemAt(i);
+                if (option.id == currentDepartmentId) {
+                    deptField.setSelectedIndex(i);
+                    break;
+                }
+            }
+
+            for (int i = 0; i < roleField.getItemCount(); i++) {
+                IdNameOption option = roleField.getItemAt(i);
+                if (option.id == currentRoleId) {
+                    roleField.setSelectedIndex(i);
+                    break;
+                }
+            }
 
             PreparedStatement userFetchPs = con.prepareStatement(
                     "SELECT username FROM users WHERE id = ? AND role = ?"
@@ -1835,9 +1867,9 @@ public class AdminDashboard {
             panel.add(phoneField1);
             panel.add(new JLabel("Phone Number 2:"));
             panel.add(phoneField2);
-            panel.add(new JLabel("Department ID:"));
+            panel.add(new JLabel("Department:"));
             panel.add(deptField);
-            panel.add(new JLabel("Role ID:"));
+            panel.add(new JLabel("Role:"));
             panel.add(roleField);
             panel.add(new JLabel("New Password (optional):"));
             panel.add(passwordField);
@@ -1859,17 +1891,16 @@ public class AdminDashboard {
             updatePs.setString(4, emailField.getText().trim());
             updatePs.setString(5, streetField.getText().trim());
 
-            if (deptField.getText().trim().isEmpty()) {
-                updatePs.setNull(6, java.sql.Types.INTEGER);
-            } else {
-                updatePs.setInt(6, Integer.parseInt(deptField.getText().trim()));
+            IdNameOption selectedDepartment = (IdNameOption) deptField.getSelectedItem();
+            IdNameOption selectedRole = (IdNameOption) roleField.getSelectedItem();
+
+            if (selectedDepartment == null || selectedRole == null) {
+                JOptionPane.showMessageDialog(frame, "Please select both department and role");
+                return;
             }
 
-            if (roleField.getText().trim().isEmpty()) {
-                updatePs.setNull(7, java.sql.Types.INTEGER);
-            } else {
-                updatePs.setInt(7, Integer.parseInt(roleField.getText().trim()));
-            }
+            updatePs.setInt(6, selectedDepartment.id);
+            updatePs.setInt(7, selectedRole.id);
 
             updatePs.setInt(8, empId);
             rows = updatePs.executeUpdate();
@@ -1969,8 +2000,6 @@ public class AdminDashboard {
             } else {
                 JOptionPane.showMessageDialog(frame, "No changes were made");
             }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(frame, "Department ID and Role ID must be numeric");
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(frame, "Error editing employee: " + e.getMessage());
