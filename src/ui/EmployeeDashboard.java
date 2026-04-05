@@ -1,12 +1,11 @@
 package ui;
 
 import db.DBConnection;
-import models.User;
-
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.*;
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import models.User;
 
 public class EmployeeDashboard {
 
@@ -177,14 +176,18 @@ public class EmployeeDashboard {
                 addProfileField(profilePanel, "Email:", rs.getString("Email"));
                 addProfileField(profilePanel, "Street:", rs.getString("Street"));
 
-                PreparedStatement phonePs = con.prepareStatement("SELECT Phone_Number FROM Employee_Phones WHERE EmpID = ? LIMIT 1");
+                PreparedStatement phonePs = con.prepareStatement("SELECT Phone_Number FROM Employee_Phones WHERE EmpID = ? ORDER BY Phone_Number");
                 phonePs.setInt(1, empId);
                 ResultSet phoneRs = phonePs.executeQuery();
-                String phone = "Not available";
-                if (phoneRs.next()) {
-                    phone = phoneRs.getString("Phone_Number");
+                StringBuilder phones = new StringBuilder();
+                while (phoneRs.next()) {
+                    if (phones.length() > 0) {
+                        phones.append("\n");
+                    }
+                    phones.append(phoneRs.getString("Phone_Number"));
                 }
-                addProfileField(profilePanel, "Phone:", phone);
+                String phoneDisplay = phones.length() > 0 ? phones.toString() : "Not available";
+                addProfileField(profilePanel, "Phone:", "<html>" + phoneDisplay.replace("\n", "<br>") + "</html>");
 
                 JPanel scrollPanel = new JPanel(new BorderLayout());
                 scrollPanel.add(profilePanel, BorderLayout.NORTH);
@@ -672,9 +675,156 @@ public class EmployeeDashboard {
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.setBorder(BorderFactory.createLineBorder(new Color(189, 195, 199)));
 
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        actionPanel.setBackground(new Color(236, 240, 241));
+        actionPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JButton viewTeamBtn = new JButton("View Team");
+        viewTeamBtn.setFont(new Font("Arial", Font.BOLD, 12));
+        viewTeamBtn.setBackground(new Color(26, 188, 156));
+        viewTeamBtn.setForeground(Color.WHITE);
+        viewTeamBtn.setBorderPainted(false);
+        viewTeamBtn.setFocusPainted(false);
+        viewTeamBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        viewTeamBtn.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row == -1) {
+                JOptionPane.showMessageDialog(frame, "Please select a project");
+                return;
+            }
+            String projectName = (String) model.getValueAt(row, 0);
+            showProjectTeam(projectName);
+        });
+
+        actionPanel.add(viewTeamBtn);
+
         contentPanel.add(headerPanel, BorderLayout.NORTH);
         contentPanel.add(scrollPane, BorderLayout.CENTER);
+        contentPanel.add(actionPanel, BorderLayout.SOUTH);
         refresh();
+    }
+
+    private void showProjectTeam(String projectName) {
+        JDialog dialog = new JDialog(frame, "Team Members - " + projectName, true);
+        dialog.setSize(700, 500);
+        dialog.setLocationRelativeTo(frame);
+        dialog.setLayout(new BorderLayout());
+
+        DefaultTableModel teamModel = new DefaultTableModel(
+                new String[]{"Employee ID", "Name", "Role in Project", "Hours/Week"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable teamTable = new JTable(teamModel);
+        styleDataTable(teamTable);
+
+        String teamLeadName = "Not Assigned";
+        
+        try (Connection con = DBConnection.getConnection()) {
+            // Fetch team lead information
+            String leadQuery = "SELECT e.Emp_name FROM Projects p " +
+                    "LEFT JOIN Employee e ON p.TeamLead = e.EmpID " +
+                    "WHERE p.PName = ?";
+            PreparedStatement leadPs = con.prepareStatement(leadQuery);
+            leadPs.setString(1, projectName);
+            ResultSet leadRs = leadPs.executeQuery();
+            
+            if (leadRs.next()) {
+                teamLeadName = leadRs.getString("Emp_name") != null ? leadRs.getString("Emp_name") : "Not Assigned";
+            }
+            
+            // Fetch team members
+            String query = "SELECT ep.EmpID, e.Emp_name, ep.role_in_project, ep.hours_per_week " +
+                    "FROM Employee_Projects ep " +
+                    "LEFT JOIN Employee e ON ep.EmpID = e.EmpID " +
+                    "LEFT JOIN Projects p ON ep.project_id = p.project_id " +
+                    "WHERE p.PName = ? " +
+                    "ORDER BY ep.EmpID";
+
+            PreparedStatement ps = con.prepareStatement(query);
+            ps.setString(1, projectName);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                teamModel.addRow(new Object[]{
+                        rs.getInt("EmpID"),
+                        rs.getString("Emp_name"),
+                        rs.getString("role_in_project"),
+                        rs.getInt("hours_per_week")
+                });
+            }
+
+            if (teamModel.getRowCount() == 0) {
+                JOptionPane.showMessageDialog(dialog, "No team members found for this project");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(dialog, "Error loading team members: " + e.getMessage());
+        }
+
+        // Create team lead info panel
+        JPanel teamLeadPanel = new JPanel(new BorderLayout());
+        teamLeadPanel.setBackground(Color.WHITE);
+        teamLeadPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(189, 195, 199)),
+            BorderFactory.createEmptyBorder(10, 15, 10, 15)
+        ));
+
+        JLabel teamLeadLabel = new JLabel("Team Lead:");
+        teamLeadLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        teamLeadLabel.setForeground(new Color(52, 73, 94));
+
+        JLabel teamLeadValue = new JLabel(teamLeadName);
+        teamLeadValue.setFont(new Font("Arial", Font.PLAIN, 12));
+        teamLeadValue.setForeground(new Color(26, 188, 156));
+        teamLeadValue.setForeground(new Color(41, 128, 185));
+
+        teamLeadPanel.add(teamLeadLabel, BorderLayout.WEST);
+        teamLeadPanel.add(teamLeadValue, BorderLayout.CENTER);
+
+        JScrollPane scrollPane = new JScrollPane(teamTable);
+        scrollPane.setBorder(BorderFactory.createLineBorder(new Color(189, 195, 199)));
+
+        JPanel closePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        closePanel.setBackground(new Color(236, 240, 241));
+        closePanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JButton closeBtn = new JButton("Close");
+        closeBtn.setFont(new Font("Arial", Font.BOLD, 12));
+        closeBtn.setBackground(new Color(52, 152, 219));
+        closeBtn.setForeground(Color.WHITE);
+        closeBtn.setBorderPainted(false);
+        closeBtn.setFocusPainted(false);
+        closeBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        closeBtn.addActionListener(e -> dialog.dispose());
+
+        closePanel.add(closeBtn);
+
+        JPanel headerPanel = new JPanel();
+        headerPanel.setBackground(new Color(26, 188, 156));
+        JLabel headerLabel = new JLabel("Team Members");
+        headerLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        headerLabel.setForeground(Color.WHITE);
+        headerPanel.add(headerLabel);
+
+        // Create center panel with team lead and team members
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setBackground(new Color(236, 240, 241));
+        centerPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        centerPanel.add(teamLeadPanel, BorderLayout.NORTH);
+        centerPanel.add(scrollPane, BorderLayout.CENTER);
+
+        dialog.add(headerPanel, BorderLayout.NORTH);
+        dialog.add(centerPanel, BorderLayout.CENTER);
+        dialog.add(closePanel, BorderLayout.SOUTH);
+
+        dialog.setVisible(true);
     }
 
     private void showMeetings() {
@@ -702,14 +852,32 @@ public class EmployeeDashboard {
         styleDataTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
-            ResultSet rs = con.createStatement().executeQuery("SELECT m_date, m_time, topic FROM meeting ORDER BY m_date DESC, m_time DESC");
+            int empId = getEmployeeId();
+            
+            // Get employee's department
+            String deptQuery = "SELECT department_id FROM Employee WHERE EmpID = ?";
+            PreparedStatement deptPs = con.prepareStatement(deptQuery);
+            deptPs.setInt(1, empId);
+            ResultSet deptRs = deptPs.executeQuery();
+            
+            if (deptRs.next()) {
+                int deptId = deptRs.getInt("department_id");
+                
+                // Get meetings for employee's department
+                String meetingQuery = "SELECT m_date, m_time, topic FROM Meeting WHERE dept_id = ? ORDER BY m_date DESC, m_time DESC";
+                PreparedStatement meetingPs = con.prepareStatement(meetingQuery);
+                meetingPs.setInt(1, deptId);
+                ResultSet rs = meetingPs.executeQuery();
 
-            while (rs.next()) {
-                model.addRow(new Object[]{
-                        rs.getDate("m_date"),
-                        rs.getTime("m_time"),
-                        rs.getString("topic")
-                });
+                while (rs.next()) {
+                    model.addRow(new Object[]{
+                            rs.getDate("m_date"),
+                            rs.getTime("m_time"),
+                            rs.getString("topic")
+                    });
+                }
+            } else {
+                JOptionPane.showMessageDialog(frame, "Employee department not found");
             }
 
         } catch (Exception e) {

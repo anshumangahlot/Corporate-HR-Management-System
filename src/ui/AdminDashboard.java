@@ -1,15 +1,14 @@
 package ui;
 
 import db.DBConnection;
-import models.User;
-
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.UUID;
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import models.User;
 
 public class AdminDashboard {
 
@@ -168,16 +167,20 @@ public class AdminDashboard {
         contentPanel.setLayout(new BorderLayout());
 
         DefaultTableModel model = new DefaultTableModel(
-                new String[]{"ID", "Name", "Email", "Department", "Role"}, 0
+                new String[]{"ID", "Name", "Email", "Phone", "Department", "Role"}, 0
         );
         JTable table = new JTable(model);
         styleTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
-            String query = "SELECT e.EmpID, e.Emp_name, e.Email, d.d_name, j.designation " +
+            String query = "SELECT e.EmpID, e.Emp_name, e.Email, " +
+                    "COALESCE(GROUP_CONCAT(DISTINCT ep.Phone_Number SEPARATOR ', '), 'Not available') AS phones, " +
+                    "d.d_name, j.designation " +
                     "FROM Employee e " +
+                    "LEFT JOIN Employee_Phones ep ON e.EmpID = ep.EmpID " +
                     "LEFT JOIN Department d ON e.department_id = d.department_id " +
-                    "LEFT JOIN Job_Role j ON e.role_id = j.role_id";
+                    "LEFT JOIN Job_Role j ON e.role_id = j.role_id " +
+                    "GROUP BY e.EmpID, e.Emp_name, e.Email, d.d_name, j.designation";
             PreparedStatement ps = con.prepareStatement(query);
             ResultSet rs = ps.executeQuery();
 
@@ -186,6 +189,7 @@ public class AdminDashboard {
                         rs.getInt("EmpID"),
                         rs.getString("Emp_name"),
                         rs.getString("Email"),
+                        rs.getString("phones"),
                         rs.getString("d_name"),
                         rs.getString("designation")
                 });
@@ -662,15 +666,16 @@ public class AdminDashboard {
         contentPanel.setLayout(new BorderLayout());
 
         DefaultTableModel model = new DefaultTableModel(
-            new String[]{"Project ID", "Name", "Start", "End", "Status", "Team Lead"}, 0
+            new String[]{"Project ID", "Name", "Start", "End", "Status", "Department", "Team Lead"}, 0
         );
         JTable table = new JTable(model);
         styleTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
-            String query = "SELECT p.project_id, p.PName, p.StartDate, p.EndDate, p.Status, e.Emp_name " +
+            String query = "SELECT p.project_id, p.PName, p.StartDate, p.EndDate, p.Status, d.d_name, e.Emp_name " +
                     "FROM Projects p " +
-                    "LEFT JOIN Employee e ON p.TeamLead = e.EmpID";
+                    "LEFT JOIN Employee e ON p.TeamLead = e.EmpID " +
+                    "LEFT JOIN Department d ON p.dept_id = d.department_id";
             PreparedStatement ps = con.prepareStatement(query);
             ResultSet rs = ps.executeQuery();
 
@@ -681,6 +686,7 @@ public class AdminDashboard {
                         rs.getDate("StartDate"),
                         rs.getDate("EndDate"),
                         rs.getString("Status"),
+                        rs.getString("d_name"),
                         rs.getString("Emp_name")
                 });
             }
@@ -694,18 +700,22 @@ public class AdminDashboard {
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         JButton addBtn = new JButton("Add Project");
         JButton editBtn = new JButton("Edit Project");
+        JButton manageTeamBtn = new JButton("Manage Team");
         JButton removeBtn = new JButton("Remove Project");
 
         styleActionButton(addBtn, new Color(26, 188, 156));
         styleActionButton(editBtn, new Color(26, 188, 156));
+        styleActionButton(manageTeamBtn, new Color(155, 89, 182));
         styleActionButton(removeBtn, new Color(192, 57, 43));
 
         addBtn.addActionListener(e -> addProject());
         editBtn.addActionListener(e -> editProject(table, model));
+        manageTeamBtn.addActionListener(e -> manageProjectEmployees(table, model));
         removeBtn.addActionListener(e -> removeProject(table, model));
 
         bottomPanel.add(addBtn);
         bottomPanel.add(editBtn);
+        bottomPanel.add(manageTeamBtn);
         bottomPanel.add(removeBtn);
 
         contentPanel.add(createSectionHeader("Projects", new Color(26, 188, 156)), BorderLayout.NORTH);
@@ -715,12 +725,35 @@ public class AdminDashboard {
     }
 
     private void addProject() {
-        JPanel panel = new JPanel(new GridLayout(5, 2, 5, 5));
+        JPanel panel = new JPanel(new GridLayout(6, 2, 5, 5));
         JTextField nameField = new JTextField();
         JTextField startField = new JTextField();
         JTextField endField = new JTextField();
         JTextField statusField = new JTextField("Active");
-        JTextField leadField = new JTextField();
+        JComboBox<String> deptBox = new JComboBox<>();
+        JComboBox<String> leadBox = new JComboBox<>();
+
+        // Populate department dropdown
+        try (Connection con = DBConnection.getConnection()) {
+            String deptQuery = "SELECT department_id, d_name FROM Department ORDER BY d_name";
+            PreparedStatement deptPs = con.prepareStatement(deptQuery);
+            ResultSet deptRs = deptPs.executeQuery();
+            while (deptRs.next()) {
+                deptBox.addItem(deptRs.getInt("department_id") + " - " + deptRs.getString("d_name"));
+            }
+
+            // Populate team lead dropdown
+            String leadQuery = "SELECT EmpID, Emp_name FROM Employee ORDER BY Emp_name";
+            PreparedStatement leadPs = con.prepareStatement(leadQuery);
+            ResultSet leadRs = leadPs.executeQuery();
+            while (leadRs.next()) {
+                leadBox.addItem(leadRs.getInt("EmpID") + " - " + leadRs.getString("Emp_name"));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(frame, "Error loading data: " + e.getMessage());
+            return;
+        }
 
         panel.add(new JLabel("Project Name:"));
         panel.add(nameField);
@@ -730,11 +763,35 @@ public class AdminDashboard {
         panel.add(endField);
         panel.add(new JLabel("Status:"));
         panel.add(statusField);
-        panel.add(new JLabel("Team Lead ID (optional):"));
-        panel.add(leadField);
+        panel.add(new JLabel("Department:"));
+        panel.add(deptBox);
+        panel.add(new JLabel("Team Lead:"));
+        panel.add(leadBox);
 
         int result = JOptionPane.showConfirmDialog(frame, panel, "Add Project", JOptionPane.OK_CANCEL_OPTION);
         if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        // Validate required fields
+        if (nameField.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "Project Name is required");
+            return;
+        }
+        if (startField.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "Start Date is required");
+            return;
+        }
+        if (endField.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "End Date is required");
+            return;
+        }
+        if (deptBox.getSelectedItem() == null) {
+            JOptionPane.showMessageDialog(frame, "Department is required");
+            return;
+        }
+        if (leadBox.getSelectedItem() == null) {
+            JOptionPane.showMessageDialog(frame, "Team Lead is required");
             return;
         }
 
@@ -747,32 +804,23 @@ public class AdminDashboard {
                 nextId = idRs.getInt("next_id");
             }
 
-            // Validate Team Lead ID if provided
-            Integer teamLeadId = null;
-            if (!leadField.getText().trim().isEmpty()) {
-                teamLeadId = Integer.parseInt(leadField.getText());
-                String checkQuery = "SELECT EmpID FROM Employee WHERE EmpID = ?";
-                PreparedStatement checkPs = con.prepareStatement(checkQuery);
-                checkPs.setInt(1, teamLeadId);
-                ResultSet checkRs = checkPs.executeQuery();
-                if (!checkRs.next()) {
-                    JOptionPane.showMessageDialog(frame, "Team Lead ID does not exist in Employee table");
-                    return;
-                }
-            }
+            // Extract department ID from selected item
+            String deptSelection = (String) deptBox.getSelectedItem();
+            int deptId = Integer.parseInt(deptSelection.split(" - ")[0]);
 
-            String insertQuery = "INSERT INTO Projects (project_id, PName, StartDate, EndDate, Status, TeamLead) VALUES (?, ?, ?, ?, ?, ?)";
+            // Extract team lead ID from selected item
+            String leadSelection = (String) leadBox.getSelectedItem();
+            int teamLeadId = Integer.parseInt(leadSelection.split(" - ")[0]);
+
+            String insertQuery = "INSERT INTO Projects (project_id, PName, StartDate, EndDate, Status, TeamLead, dept_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement ps = con.prepareStatement(insertQuery);
             ps.setInt(1, nextId);
-            ps.setString(2, nameField.getText());
+            ps.setString(2, nameField.getText().trim());
             ps.setString(3, startField.getText());
             ps.setString(4, endField.getText());
             ps.setString(5, statusField.getText());
-            if (teamLeadId != null) {
-                ps.setInt(6, teamLeadId);
-            } else {
-                ps.setNull(6, java.sql.Types.INTEGER);
-            }
+            ps.setInt(6, teamLeadId);
+            ps.setInt(7, deptId);
             ps.executeUpdate();
 
             JOptionPane.showMessageDialog(frame, "Project added successfully");
@@ -851,7 +899,7 @@ public class AdminDashboard {
 
         try (Connection con = DBConnection.getConnection();
              PreparedStatement fetchPs = con.prepareStatement(
-                     "SELECT PName, StartDate, EndDate, Status, TeamLead FROM Projects WHERE project_id = ?")) {
+                     "SELECT PName, StartDate, EndDate, Status, TeamLead, dept_id FROM Projects WHERE project_id = ?")) {
             fetchPs.setInt(1, projectId);
             ResultSet rs = fetchPs.executeQuery();
 
@@ -860,12 +908,39 @@ public class AdminDashboard {
                 return;
             }
 
-            JPanel panel = new JPanel(new GridLayout(5, 2, 5, 5));
+            JPanel panel = new JPanel(new GridLayout(6, 2, 5, 5));
             JTextField nameField = new JTextField(rs.getString("PName"));
             JTextField startField = new JTextField(rs.getDate("StartDate") == null ? "" : rs.getDate("StartDate").toString());
             JTextField endField = new JTextField(rs.getDate("EndDate") == null ? "" : rs.getDate("EndDate").toString());
             JTextField statusField = new JTextField(rs.getString("Status"));
-            JTextField leadField = new JTextField(rs.getObject("TeamLead") == null ? "" : String.valueOf(rs.getInt("TeamLead")));
+            JComboBox<String> deptBox = new JComboBox<>();
+            JComboBox<String> leadBox = new JComboBox<>();
+
+            // Populate department dropdown
+            String deptQuery = "SELECT department_id, d_name FROM Department ORDER BY d_name";
+            PreparedStatement deptPs = con.prepareStatement(deptQuery);
+            ResultSet deptRs = deptPs.executeQuery();
+            while (deptRs.next()) {
+                String deptItem = deptRs.getInt("department_id") + " - " + deptRs.getString("d_name");
+                deptBox.addItem(deptItem);
+                // Select current department
+                if (deptRs.getInt("department_id") == rs.getInt("dept_id")) {
+                    deptBox.setSelectedItem(deptItem);
+                }
+            }
+
+            // Populate team lead dropdown
+            String leadQuery = "SELECT EmpID, Emp_name FROM Employee ORDER BY Emp_name";
+            PreparedStatement leadPs = con.prepareStatement(leadQuery);
+            ResultSet leadRs = leadPs.executeQuery();
+            while (leadRs.next()) {
+                String leadItem = leadRs.getInt("EmpID") + " - " + leadRs.getString("Emp_name");
+                leadBox.addItem(leadItem);
+                // Select current team lead
+                if (leadRs.getInt("EmpID") == rs.getInt("TeamLead")) {
+                    leadBox.setSelectedItem(leadItem);
+                }
+            }
 
             panel.add(new JLabel("Project Name:"));
             panel.add(nameField);
@@ -875,38 +950,60 @@ public class AdminDashboard {
             panel.add(endField);
             panel.add(new JLabel("Status:"));
             panel.add(statusField);
-            panel.add(new JLabel("Team Lead ID (optional):"));
-            panel.add(leadField);
+            panel.add(new JLabel("Department:"));
+            panel.add(deptBox);
+            panel.add(new JLabel("Team Lead:"));
+            panel.add(leadBox);
 
             int result = JOptionPane.showConfirmDialog(frame, panel, "Edit Project #" + projectId, JOptionPane.OK_CANCEL_OPTION);
             if (result != JOptionPane.OK_OPTION) {
                 return;
             }
 
-            Integer teamLeadId = null;
-            if (!leadField.getText().trim().isEmpty()) {
-                teamLeadId = Integer.parseInt(leadField.getText().trim());
+            // Validate required fields
+            if (nameField.getText().trim().isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "Project Name is required");
+                return;
+            }
+            if (startField.getText().trim().isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "Start Date is required");
+                return;
+            }
+            if (endField.getText().trim().isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "End Date is required");
+                return;
+            }
+            if (deptBox.getSelectedItem() == null) {
+                JOptionPane.showMessageDialog(frame, "Department is required");
+                return;
+            }
+            if (leadBox.getSelectedItem() == null) {
+                JOptionPane.showMessageDialog(frame, "Team Lead is required");
+                return;
             }
 
+            // Extract department ID from selected item
+            String deptSelection = (String) deptBox.getSelectedItem();
+            int deptId = Integer.parseInt(deptSelection.split(" - ")[0]);
+
+            // Extract team lead ID from selected item
+            String leadSelection = (String) leadBox.getSelectedItem();
+            int teamLeadId = Integer.parseInt(leadSelection.split(" - ")[0]);
+
             try (PreparedStatement updatePs = con.prepareStatement(
-                    "UPDATE Projects SET PName = ?, StartDate = ?, EndDate = ?, Status = ?, TeamLead = ? WHERE project_id = ?")) {
+                    "UPDATE Projects SET PName = ?, StartDate = ?, EndDate = ?, Status = ?, TeamLead = ?, dept_id = ? WHERE project_id = ?")) {
                 updatePs.setString(1, nameField.getText().trim());
                 updatePs.setString(2, startField.getText().trim());
                 updatePs.setString(3, endField.getText().trim());
                 updatePs.setString(4, statusField.getText().trim());
-                if (teamLeadId == null) {
-                    updatePs.setNull(5, java.sql.Types.INTEGER);
-                } else {
-                    updatePs.setInt(5, teamLeadId);
-                }
-                updatePs.setInt(6, projectId);
+                updatePs.setInt(5, teamLeadId);
+                updatePs.setInt(6, deptId);
+                updatePs.setInt(7, projectId);
                 updatePs.executeUpdate();
             }
 
             JOptionPane.showMessageDialog(frame, "Project updated successfully");
             showProjects();
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(frame, "Team Lead ID must be a number");
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(frame, "Error updating project: " + e.getMessage());
@@ -952,6 +1049,221 @@ public class AdminDashboard {
         }
     }
 
+    private void manageProjectEmployees(JTable table, DefaultTableModel model) {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(frame, "Please select a project");
+            return;
+        }
+
+        int projectId = (int) model.getValueAt(row, 0);
+        String projectName = (String) model.getValueAt(row, 1);
+
+        showProjectEmployeesDialog(projectId, projectName);
+    }
+
+    private void showProjectEmployeesDialog(int projectId, String projectName) {
+        JDialog dialog = new JDialog(frame, "Manage Team - " + projectName, true);
+        dialog.setSize(600, 400);
+        dialog.setLocationRelativeTo(frame);
+        dialog.setLayout(new BorderLayout());
+
+        // Display current team members
+        DefaultTableModel teamModel = new DefaultTableModel(
+                new String[]{"Employee ID", "Name", "Role in Project", "Hours/Week", "Assigned Date"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        JTable teamTable = new JTable(teamModel);
+        styleTable(teamTable);
+
+        try (Connection con = DBConnection.getConnection()) {
+            String query = "SELECT ep.EmpID, e.Emp_name, ep.role_in_project, ep.hours_per_week, ep.assigned_date " +
+                    "FROM Employee_Projects ep " +
+                    "LEFT JOIN Employee e ON ep.EmpID = e.EmpID " +
+                    "WHERE ep.project_id = ?";
+            PreparedStatement ps = con.prepareStatement(query);
+            ps.setInt(1, projectId);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                teamModel.addRow(new Object[]{
+                        rs.getInt("EmpID"),
+                        rs.getString("Emp_name"),
+                        rs.getString("role_in_project"),
+                        rs.getInt("hours_per_week"),
+                        rs.getDate("assigned_date")
+                });
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(dialog, "Error loading team members");
+        }
+
+        // Create action panel
+        JPanel actionPanel = new JPanel(new FlowLayout());
+        actionPanel.setBackground(new Color(236, 240, 241));
+        actionPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JButton addEmpBtn = new JButton("Add Employee");
+        JButton removeEmpBtn = new JButton("Remove Employee");
+        JButton closeBtn = new JButton("Close");
+
+        styleActionButton(addEmpBtn, new Color(26, 188, 156));
+        styleActionButton(removeEmpBtn, new Color(192, 57, 43));
+        styleActionButton(closeBtn, new Color(52, 152, 219));
+
+        addEmpBtn.addActionListener(e -> addEmployeeToProject(projectId, dialog, teamModel));
+        removeEmpBtn.addActionListener(e -> {
+            int selectedRow = teamTable.getSelectedRow();
+            if (selectedRow == -1) {
+                JOptionPane.showMessageDialog(dialog, "Please select an employee");
+                return;
+            }
+            int empId = (int) teamModel.getValueAt(selectedRow, 0);
+            removeEmployeeFromProject(projectId, empId, dialog, teamModel);
+        });
+        closeBtn.addActionListener(e -> dialog.dispose());
+
+        actionPanel.add(addEmpBtn);
+        actionPanel.add(removeEmpBtn);
+        actionPanel.add(closeBtn);
+
+        dialog.add(createSectionHeader("Team Members", new Color(26, 188, 156)), BorderLayout.NORTH);
+        dialog.add(new JScrollPane(teamTable), BorderLayout.CENTER);
+        dialog.add(actionPanel, BorderLayout.SOUTH);
+
+        dialog.setVisible(true);
+    }
+
+    private void addEmployeeToProject(int projectId, JDialog parentDialog, DefaultTableModel teamModel) {
+        try (Connection con = DBConnection.getConnection()) {
+            // Get list of employees not yet in the project
+            String query = "SELECT e.EmpID, e.Emp_name FROM Employee e " +
+                    "WHERE e.EmpID NOT IN (SELECT EmpID FROM Employee_Projects WHERE project_id = ?) " +
+                    "ORDER BY e.EmpID";
+            PreparedStatement ps = con.prepareStatement(query);
+            ps.setInt(1, projectId);
+            ResultSet rs = ps.executeQuery();
+
+            DefaultComboBoxModel<EmployeeSelection> model = new DefaultComboBoxModel<>();
+            while (rs.next()) {
+                model.addElement(new EmployeeSelection(rs.getInt("EmpID"), rs.getString("Emp_name")));
+            }
+
+            if (model.getSize() == 0) {
+                JOptionPane.showMessageDialog(parentDialog, "All employees are already added to this project");
+                return;
+            }
+
+            JComboBox<EmployeeSelection> employeeBox = new JComboBox<>(model);
+            employeeBox.setSelectedIndex(0);
+
+            JPanel panel = new JPanel(new GridLayout(4, 2, 5, 5));
+            JTextField roleField = new JTextField("Developer");
+            JTextField hoursField = new JTextField("40");
+
+            panel.add(new JLabel("Select Employee:"));
+            panel.add(employeeBox);
+            panel.add(new JLabel("Role in Project:"));
+            panel.add(roleField);
+            panel.add(new JLabel("Hours per Week:"));
+            panel.add(hoursField);
+
+            int result = JOptionPane.showConfirmDialog(parentDialog, panel, "Add Employee to Project", JOptionPane.OK_CANCEL_OPTION);
+            if (result != JOptionPane.OK_OPTION) {
+                return;
+            }
+
+            EmployeeSelection selected = (EmployeeSelection) employeeBox.getSelectedItem();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(parentDialog, "Please select an employee");
+                return;
+            }
+
+            try (PreparedStatement insertPs = con.prepareStatement(
+                    "INSERT INTO Employee_Projects (EmpID, project_id, assigned_date, role_in_project, hours_per_week) VALUES (?, ?, CURDATE(), ?, ?)")) {
+                insertPs.setInt(1, selected.empId);
+                insertPs.setInt(2, projectId);
+                insertPs.setString(3, roleField.getText().trim());
+                insertPs.setInt(4, Integer.parseInt(hoursField.getText().trim()));
+                insertPs.executeUpdate();
+
+                // Refresh the team table
+                teamModel.setRowCount(0);
+                String refreshQuery = "SELECT ep.EmpID, e.Emp_name, ep.role_in_project, ep.hours_per_week, ep.assigned_date " +
+                        "FROM Employee_Projects ep " +
+                        "LEFT JOIN Employee e ON ep.EmpID = e.EmpID " +
+                        "WHERE ep.project_id = ?";
+                PreparedStatement refreshPs = con.prepareStatement(refreshQuery);
+                refreshPs.setInt(1, projectId);
+                ResultSet refreshRs = refreshPs.executeQuery();
+
+                while (refreshRs.next()) {
+                    teamModel.addRow(new Object[]{
+                            refreshRs.getInt("EmpID"),
+                            refreshRs.getString("Emp_name"),
+                            refreshRs.getString("role_in_project"),
+                            refreshRs.getInt("hours_per_week"),
+                            refreshRs.getDate("assigned_date")
+                    });
+                }
+
+                JOptionPane.showMessageDialog(parentDialog, "Employee added to project successfully");
+            }
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(parentDialog, "Hours per week must be a valid number");
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(parentDialog, "Error adding employee: " + e.getMessage());
+        }
+    }
+
+    private void removeEmployeeFromProject(int projectId, int empId, JDialog parentDialog, DefaultTableModel teamModel) {
+        int result = JOptionPane.showConfirmDialog(parentDialog,
+                "Are you sure you want to remove this employee from the project?",
+                "Confirm Remove",
+                JOptionPane.YES_NO_OPTION);
+        if (result != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement deletePs = con.prepareStatement("DELETE FROM Employee_Projects WHERE EmpID = ? AND project_id = ?")) {
+            deletePs.setInt(1, empId);
+            deletePs.setInt(2, projectId);
+            deletePs.executeUpdate();
+
+            // Refresh the team table
+            teamModel.setRowCount(0);
+            String query = "SELECT ep.EmpID, e.Emp_name, ep.role_in_project, ep.hours_per_week, ep.assigned_date " +
+                    "FROM Employee_Projects ep " +
+                    "LEFT JOIN Employee e ON ep.EmpID = e.EmpID " +
+                    "WHERE ep.project_id = ?";
+            PreparedStatement ps = con.prepareStatement(query);
+            ps.setInt(1, projectId);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                teamModel.addRow(new Object[]{
+                        rs.getInt("EmpID"),
+                        rs.getString("Emp_name"),
+                        rs.getString("role_in_project"),
+                        rs.getInt("hours_per_week"),
+                        rs.getDate("assigned_date")
+                });
+            }
+
+            JOptionPane.showMessageDialog(parentDialog, "Employee removed from project successfully");
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(parentDialog, "Error removing employee: " + e.getMessage());
+        }
+    }
+
     private void editMeeting(JTable table, DefaultTableModel model) {
         int row = table.getSelectedRow();
         if (row == -1) {
@@ -976,7 +1288,20 @@ public class AdminDashboard {
             JTextField dateField = new JTextField(rs.getDate("m_date") == null ? "" : rs.getDate("m_date").toString());
             JTextField timeField = new JTextField(rs.getTime("m_time") == null ? "" : rs.getTime("m_time").toString());
             JTextField topicField = new JTextField(rs.getString("topic"));
-            JTextField deptField = new JTextField(rs.getObject("dept_id") == null ? "" : String.valueOf(rs.getInt("dept_id")));
+            JComboBox<String> deptBox = new JComboBox<>();
+
+            // Populate department dropdown
+            String deptQuery = "SELECT department_id, d_name FROM Department ORDER BY d_name";
+            PreparedStatement deptPs = con.prepareStatement(deptQuery);
+            ResultSet deptRs = deptPs.executeQuery();
+            while (deptRs.next()) {
+                String deptItem = deptRs.getInt("department_id") + " - " + deptRs.getString("d_name");
+                deptBox.addItem(deptItem);
+                // Select current department
+                if (deptRs.getInt("department_id") == rs.getInt("dept_id")) {
+                    deptBox.setSelectedItem(deptItem);
+                }
+            }
 
             panel.add(new JLabel("Date (YYYY-MM-DD):"));
             panel.add(dateField);
@@ -984,37 +1309,48 @@ public class AdminDashboard {
             panel.add(timeField);
             panel.add(new JLabel("Topic:"));
             panel.add(topicField);
-            panel.add(new JLabel("Department ID (optional):"));
-            panel.add(deptField);
+            panel.add(new JLabel("Department:"));
+            panel.add(deptBox);
 
             int result = JOptionPane.showConfirmDialog(frame, panel, "Edit Meeting #" + meetingId, JOptionPane.OK_CANCEL_OPTION);
             if (result != JOptionPane.OK_OPTION) {
                 return;
             }
 
-            Integer deptId = null;
-            if (!deptField.getText().trim().isEmpty()) {
-                deptId = Integer.parseInt(deptField.getText().trim());
+            // Validate required fields
+            if (dateField.getText().trim().isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "Date is required");
+                return;
             }
+            if (timeField.getText().trim().isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "Time is required");
+                return;
+            }
+            if (topicField.getText().trim().isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "Topic is required");
+                return;
+            }
+            if (deptBox.getSelectedItem() == null) {
+                JOptionPane.showMessageDialog(frame, "Department is required");
+                return;
+            }
+
+            // Extract department ID from selected item
+            String deptSelection = (String) deptBox.getSelectedItem();
+            int deptId = Integer.parseInt(deptSelection.split(" - ")[0]);
 
             try (PreparedStatement updatePs = con.prepareStatement(
                     "UPDATE Meeting SET m_date = ?, m_time = ?, topic = ?, dept_id = ? WHERE meeting_id = ?")) {
                 updatePs.setString(1, dateField.getText().trim());
                 updatePs.setString(2, timeField.getText().trim());
                 updatePs.setString(3, topicField.getText().trim());
-                if (deptId == null) {
-                    updatePs.setNull(4, java.sql.Types.INTEGER);
-                } else {
-                    updatePs.setInt(4, deptId);
-                }
+                updatePs.setInt(4, deptId);
                 updatePs.setInt(5, meetingId);
                 updatePs.executeUpdate();
             }
 
             JOptionPane.showMessageDialog(frame, "Meeting updated successfully");
             showMeetings();
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(frame, "Department ID must be a number");
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(frame, "Error updating meeting: " + e.getMessage());
@@ -1059,7 +1395,21 @@ public class AdminDashboard {
         JTextField dateField = new JTextField();
         JTextField timeField = new JTextField();
         JTextField topicField = new JTextField();
-        JTextField deptField = new JTextField();
+        JComboBox<String> deptBox = new JComboBox<>();
+
+        // Populate department dropdown
+        try (Connection con = DBConnection.getConnection()) {
+            String deptQuery = "SELECT department_id, d_name FROM Department ORDER BY d_name";
+            PreparedStatement deptPs = con.prepareStatement(deptQuery);
+            ResultSet deptRs = deptPs.executeQuery();
+            while (deptRs.next()) {
+                deptBox.addItem(deptRs.getInt("department_id") + " - " + deptRs.getString("d_name"));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(frame, "Error loading departments: " + e.getMessage());
+            return;
+        }
 
         panel.add(new JLabel("Date (YYYY-MM-DD):"));
         panel.add(dateField);
@@ -1067,11 +1417,29 @@ public class AdminDashboard {
         panel.add(timeField);
         panel.add(new JLabel("Topic:"));
         panel.add(topicField);
-        panel.add(new JLabel("Department ID:"));
-        panel.add(deptField);
+        panel.add(new JLabel("Department:"));
+        panel.add(deptBox);
 
         int result = JOptionPane.showConfirmDialog(frame, panel, "Add Meeting", JOptionPane.OK_CANCEL_OPTION);
         if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        // Validate required fields
+        if (dateField.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "Date is required");
+            return;
+        }
+        if (timeField.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "Time is required");
+            return;
+        }
+        if (topicField.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "Topic is required");
+            return;
+        }
+        if (deptBox.getSelectedItem() == null) {
+            JOptionPane.showMessageDialog(frame, "Department is required");
             return;
         }
 
@@ -1084,13 +1452,17 @@ public class AdminDashboard {
                 nextId = idRs.getInt("next_id");
             }
 
+            // Extract department ID from selected item
+            String deptSelection = (String) deptBox.getSelectedItem();
+            int deptId = Integer.parseInt(deptSelection.split(" - ")[0]);
+
             String insertQuery = "INSERT INTO Meeting (meeting_id, m_date, m_time, topic, dept_id) VALUES (?, ?, ?, ?, ?)";
             PreparedStatement ps = con.prepareStatement(insertQuery);
             ps.setInt(1, nextId);
             ps.setString(2, dateField.getText());
             ps.setString(3, timeField.getText());
             ps.setString(4, topicField.getText());
-            ps.setInt(5, Integer.parseInt(deptField.getText()));
+            ps.setInt(5, deptId);
             ps.executeUpdate();
 
             JOptionPane.showMessageDialog(frame, "Meeting added successfully");
@@ -1122,7 +1494,7 @@ public class AdminDashboard {
     }
 
     private void addEmployee() {
-        JPanel panel = new JPanel(new GridLayout(10, 2, 5, 5));
+        JPanel panel = new JPanel(new GridLayout(12, 2, 5, 5));
         JTextField idField = new JTextField();
         JTextField usernameField = new JTextField();
         JTextField nameField = new JTextField();
@@ -1130,6 +1502,8 @@ public class AdminDashboard {
         JTextField emailField = new JTextField();
         JTextField dobField = new JTextField("YYYY-MM-DD");
         JTextField streetField = new JTextField();
+        JTextField phoneField = new JTextField();
+        JTextField phoneField2 = new JTextField();
         JComboBox<IdNameOption> deptField = new JComboBox<>();
         JComboBox<IdNameOption> roleField = new JComboBox<>();
         JPasswordField passwordField = new JPasswordField();
@@ -1167,6 +1541,10 @@ public class AdminDashboard {
         panel.add(dobField);
         panel.add(new JLabel("Street:"));
         panel.add(streetField);
+        panel.add(new JLabel("Phone Number 1:"));
+        panel.add(phoneField);
+        panel.add(new JLabel("Phone Number 2:"));
+        panel.add(phoneField2);
         panel.add(new JLabel("Department:"));
         panel.add(deptField);
         panel.add(new JLabel("Role:"));
@@ -1225,12 +1603,34 @@ public class AdminDashboard {
             
             ps.executeUpdate();
 
-                PreparedStatement userPs = con.prepareStatement(
-                    "INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)"
+            // Insert phone numbers if provided
+            String phoneNumber1 = phoneField.getText().trim();
+            String phoneNumber2 = phoneField2.getText().trim();
+            
+            if (!phoneNumber1.isEmpty()) {
+                PreparedStatement phonePs = con.prepareStatement(
+                    "INSERT INTO Employee_Phones (EmpID, Phone_Number) VALUES (?, ?)"
+                );
+                phonePs.setInt(1, empId);
+                phonePs.setString(2, phoneNumber1);
+                phonePs.executeUpdate();
+            }
+            
+            if (!phoneNumber2.isEmpty()) {
+                PreparedStatement phonePs2 = con.prepareStatement(
+                    "INSERT INTO Employee_Phones (EmpID, Phone_Number) VALUES (?, ?)"
+                );
+                phonePs2.setInt(1, empId);
+                phonePs2.setString(2, phoneNumber2);
+                phonePs2.executeUpdate();
+            }
+
+            PreparedStatement userPs = con.prepareStatement(
+                "INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)"
             );
-                userPs.setInt(1, empId);
-                userPs.setString(2, username);
-                userPs.setString(3, password);
+            userPs.setInt(1, empId);
+            userPs.setString(2, username);
+            userPs.setString(3, password);
                 userPs.setString(4, "employee");
             userPs.executeUpdate();
 
@@ -1380,13 +1780,15 @@ public class AdminDashboard {
                 return;
             }
 
-            JPanel panel = new JPanel(new GridLayout(9, 2, 5, 5));
+            JPanel panel = new JPanel(new GridLayout(11, 2, 5, 5));
             JTextField nameField = new JTextField(rs.getString("Emp_name"));
             JComboBox<String> genderField = new JComboBox<>(new String[]{"Male", "Female", "Other"});
             genderField.setSelectedItem(rs.getString("Gender"));
             JTextField dobField = new JTextField(rs.getDate("DOB") != null ? rs.getDate("DOB").toString() : "");
             JTextField emailField = new JTextField(rs.getString("Email"));
             JTextField streetField = new JTextField(rs.getString("Street"));
+            JTextField phoneField1 = new JTextField();
+            JTextField phoneField2 = new JTextField();
             JTextField deptField = new JTextField(rs.getObject("department_id") == null ? "" : String.valueOf(rs.getInt("department_id")));
             JTextField roleField = new JTextField(rs.getObject("role_id") == null ? "" : String.valueOf(rs.getInt("role_id")));
             JPasswordField passwordField = new JPasswordField();
@@ -1402,6 +1804,21 @@ public class AdminDashboard {
                 usernameField.setText(userRs.getString("username"));
             }
 
+            // Fetch existing phone numbers
+            PreparedStatement phoneFetchPs = con.prepareStatement(
+                    "SELECT Phone_Number FROM Employee_Phones WHERE EmpID = ? ORDER BY Phone_Number"
+            );
+            phoneFetchPs.setInt(1, empId);
+            ResultSet phoneRs = phoneFetchPs.executeQuery();
+            String[] phoneNumbers = new String[2];
+            int phoneCount = 0;
+            while (phoneRs.next() && phoneCount < 2) {
+                phoneNumbers[phoneCount] = phoneRs.getString("Phone_Number");
+                phoneCount++;
+            }
+            if (phoneCount > 0) phoneField1.setText(phoneNumbers[0]);
+            if (phoneCount > 1) phoneField2.setText(phoneNumbers[1]);
+
             panel.add(new JLabel("Username:"));
             panel.add(usernameField);
             panel.add(new JLabel("Name:"));
@@ -1414,6 +1831,10 @@ public class AdminDashboard {
             panel.add(emailField);
             panel.add(new JLabel("Street:"));
             panel.add(streetField);
+            panel.add(new JLabel("Phone Number 1:"));
+            panel.add(phoneField1);
+            panel.add(new JLabel("Phone Number 2:"));
+            panel.add(phoneField2);
             panel.add(new JLabel("Department ID:"));
             panel.add(deptField);
             panel.add(new JLabel("Role ID:"));
@@ -1452,6 +1873,34 @@ public class AdminDashboard {
 
             updatePs.setInt(8, empId);
             rows = updatePs.executeUpdate();
+
+            // Update phone numbers
+            PreparedStatement deletePhonePs = con.prepareStatement(
+                    "DELETE FROM Employee_Phones WHERE EmpID = ?"
+            );
+            deletePhonePs.setInt(1, empId);
+            deletePhonePs.executeUpdate();
+
+            String phone1 = phoneField1.getText().trim();
+            String phone2 = phoneField2.getText().trim();
+
+            if (!phone1.isEmpty()) {
+                PreparedStatement insertPhone1Ps = con.prepareStatement(
+                        "INSERT INTO Employee_Phones (EmpID, Phone_Number) VALUES (?, ?)"
+                );
+                insertPhone1Ps.setInt(1, empId);
+                insertPhone1Ps.setString(2, phone1);
+                insertPhone1Ps.executeUpdate();
+            }
+
+            if (!phone2.isEmpty()) {
+                PreparedStatement insertPhone2Ps = con.prepareStatement(
+                        "INSERT INTO Employee_Phones (EmpID, Phone_Number) VALUES (?, ?)"
+                );
+                insertPhone2Ps.setInt(1, empId);
+                insertPhone2Ps.setString(2, phone2);
+                insertPhone2Ps.executeUpdate();
+            }
 
                 String updatedUsername = usernameField.getText().trim();
                 if (updatedUsername.isEmpty()) {

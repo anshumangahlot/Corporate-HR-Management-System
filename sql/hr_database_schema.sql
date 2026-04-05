@@ -176,8 +176,8 @@ CREATE TABLE Projects (
     StartDate DATE,
     EndDate DATE,
     Status VARCHAR(20),
-    TeamLead INT NULL,
-    dept_id INT NULL,
+    TeamLead INT NOT NULL,
+    dept_id INT NOT NULL,
     FOREIGN KEY (TeamLead) REFERENCES Employee(EmpID),
     FOREIGN KEY (dept_id) REFERENCES Department(department_id)
 );
