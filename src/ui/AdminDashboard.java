@@ -1130,9 +1130,28 @@ public class AdminDashboard {
         JTextField emailField = new JTextField();
         JTextField dobField = new JTextField("YYYY-MM-DD");
         JTextField streetField = new JTextField();
-        JTextField deptField = new JTextField();
-        JTextField roleField = new JTextField();
+        JComboBox<IdNameOption> deptField = new JComboBox<>();
+        JComboBox<IdNameOption> roleField = new JComboBox<>();
         JPasswordField passwordField = new JPasswordField();
+
+        try (Connection con = DBConnection.getConnection()) {
+            loadDepartmentOptions(con, deptField);
+            loadRoleOptions(con, roleField);
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(frame, "Error loading departments/roles: " + e.getMessage());
+            return;
+        }
+
+        if (deptField.getItemCount() == 0) {
+            JOptionPane.showMessageDialog(frame, "No departments available. Please add a department first.");
+            return;
+        }
+
+        if (roleField.getItemCount() == 0) {
+            JOptionPane.showMessageDialog(frame, "No roles available. Please add a role first.");
+            return;
+        }
 
         panel.add(new JLabel("Employee ID:"));
         panel.add(idField);
@@ -1148,9 +1167,9 @@ public class AdminDashboard {
         panel.add(dobField);
         panel.add(new JLabel("Street:"));
         panel.add(streetField);
-        panel.add(new JLabel("Department ID:"));
+        panel.add(new JLabel("Department:"));
         panel.add(deptField);
-        panel.add(new JLabel("Role ID:"));
+        panel.add(new JLabel("Role:"));
         panel.add(roleField);
         panel.add(new JLabel("Login Password:"));
         panel.add(passwordField);
@@ -1174,7 +1193,14 @@ public class AdminDashboard {
         try (Connection con = DBConnection.getConnection()) {
             con.setAutoCommit(false);
             int empId = Integer.parseInt(idField.getText().trim());
+            IdNameOption selectedDepartment = (IdNameOption) deptField.getSelectedItem();
+            IdNameOption selectedRole = (IdNameOption) roleField.getSelectedItem();
             String username = usernameInput;
+
+            if (selectedDepartment == null || selectedRole == null) {
+                JOptionPane.showMessageDialog(frame, "Please select both department and role");
+                return;
+            }
 
             PreparedStatement checkUserPs = con.prepareStatement(
                     "SELECT id FROM users WHERE username = ?"
@@ -1194,18 +1220,8 @@ public class AdminDashboard {
             ps.setString(4, dobField.getText());
             ps.setString(5, emailField.getText());
             ps.setString(6, streetField.getText());
-            
-            if (!deptField.getText().trim().isEmpty()) {
-                ps.setInt(7, Integer.parseInt(deptField.getText()));
-            } else {
-                ps.setNull(7, java.sql.Types.INTEGER);
-            }
-            
-            if (!roleField.getText().trim().isEmpty()) {
-                ps.setInt(8, Integer.parseInt(roleField.getText()));
-            } else {
-                ps.setNull(8, java.sql.Types.INTEGER);
-            }
+            ps.setInt(7, selectedDepartment.id);
+            ps.setInt(8, selectedRole.id);
             
             ps.executeUpdate();
 
@@ -1224,10 +1240,45 @@ public class AdminDashboard {
             JOptionPane.showMessageDialog(frame, "Employee added successfully. Username: " + username);
             showEmployees();
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(frame, "Employee ID, Department ID and Role ID must be numeric");
+            JOptionPane.showMessageDialog(frame, "Employee ID must be numeric");
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(frame, "Error adding employee: " + e.getMessage());
+        }
+    }
+
+    private void loadDepartmentOptions(Connection con, JComboBox<IdNameOption> departmentBox) throws Exception {
+        String query = "SELECT department_id, d_name FROM Department ORDER BY department_id";
+        try (PreparedStatement ps = con.prepareStatement(query);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                departmentBox.addItem(new IdNameOption(rs.getInt("department_id"), rs.getString("d_name")));
+            }
+        }
+    }
+
+    private void loadRoleOptions(Connection con, JComboBox<IdNameOption> roleBox) throws Exception {
+        String query = "SELECT role_id, designation FROM Job_Role ORDER BY role_id";
+        try (PreparedStatement ps = con.prepareStatement(query);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                roleBox.addItem(new IdNameOption(rs.getInt("role_id"), rs.getString("designation")));
+            }
+        }
+    }
+
+    private static class IdNameOption {
+        private final int id;
+        private final String name;
+
+        private IdNameOption(int id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        @Override
+        public String toString() {
+            return id + " - " + name;
         }
     }
 

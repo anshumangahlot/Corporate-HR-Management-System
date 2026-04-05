@@ -15,8 +15,8 @@ CREATE TABLE Employee (
     Email VARCHAR(50),
     Street VARCHAR(100),
     ZipCode INT,
-    role_id INT,
-    department_id INT,
+    role_id INT NOT NULL ,
+    department_id INT NOT NULL,
     FOREIGN KEY (ZipCode) REFERENCES Zip_Directory(ZipCode)
 );
 
