@@ -2,10 +2,17 @@ package ui;
 
 import services.AuthService;
 import models.User;
+import exceptions.AuthenticationException;
+import exceptions.ValidationException;
+import exceptions.DatabaseException;
 
 import javax.swing.*;
 import java.awt.*;
 
+/**
+ * LoginUI Class
+ * Demonstrates comprehensive error handling with custom exceptions
+ */
 public class LoginUI {
 
     public static void main(String[] args) {
@@ -126,6 +133,7 @@ public class LoginUI {
         gbc.gridy = 6;
         gbc.insets = new Insets(25, 0, 0, 0);
         formPanel.add(loginBtn, gbc);
+        
         // Footer Panel
         JPanel footerPanel = new JPanel();
         footerPanel.setBackground(new Color(236, 240, 241));
@@ -142,35 +150,61 @@ public class LoginUI {
 
         frame.add(mainPanel);
 
-        // Action
+        // Action with comprehensive error handling (CO3)
         loginBtn.addActionListener(e -> {
 
             String username = userField.getText().trim();
             String password = new String(passField.getPassword());
 
-            if (username.isEmpty() || password.isEmpty()) {
-                JOptionPane.showMessageDialog(frame, "Please fill all fields", "Required Fields", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+            try {
+                // Attempt login with error handling
+                User user = AuthService.loginUser(username, password);
 
-            String selectedRole = adminBtn.isSelected() ? "admin" : "employee";
+                String selectedRole = adminBtn.isSelected() ? "admin" : "employee";
 
-            User user = AuthService.loginUser(username, password);
-
-            if (user == null) {
-                JOptionPane.showMessageDialog(frame, "Invalid username or password", "Login Failed", JOptionPane.ERROR_MESSAGE);
-            } 
-            else if (!user.getRole().equalsIgnoreCase(selectedRole)) {
-                JOptionPane.showMessageDialog(frame, "Selected role does not match your account role", "Role Mismatch", JOptionPane.WARNING_MESSAGE);
-            } 
-            else {
-                frame.dispose();
-
-                if (user.getRole().equalsIgnoreCase("admin")) {
-                    new AdminDashboard(user);
+                if (!user.getRole().equalsIgnoreCase(selectedRole)) {
+                    JOptionPane.showMessageDialog(frame, 
+                        "Selected role does not match your account role", 
+                        "Role Mismatch", 
+                        JOptionPane.WARNING_MESSAGE);
                 } else {
-                    new EmployeeDashboard(user);
+                    frame.dispose();
+
+                    if (user.getRole().equalsIgnoreCase("admin")) {
+                        new AdminDashboard(user);
+                    } else {
+                        new EmployeeDashboard(user);
+                    }
                 }
+
+            } catch (ValidationException ve) {
+                // Handle validation errors
+                JOptionPane.showMessageDialog(frame, 
+                    "Validation Error: " + ve.getMessage(), 
+                    "Input Validation Failed", 
+                    JOptionPane.ERROR_MESSAGE);
+
+            } catch (AuthenticationException ae) {
+                // Handle authentication errors
+                JOptionPane.showMessageDialog(frame, 
+                    "Authentication Failed: " + ae.getMessage(), 
+                    "Login Error", 
+                    JOptionPane.ERROR_MESSAGE);
+
+            } catch (DatabaseException de) {
+                // Handle database errors
+                JOptionPane.showMessageDialog(frame, 
+                    "Database Error: " + de.getMessage(), 
+                    "System Error", 
+                    JOptionPane.ERROR_MESSAGE);
+
+            } catch (Exception ex) {
+                // Handle unexpected errors
+                JOptionPane.showMessageDialog(frame, 
+                    "Unexpected error: " + ex.getMessage(), 
+                    "Error", 
+                    JOptionPane.ERROR_MESSAGE);
+                ex.printStackTrace();
             }
         });
 

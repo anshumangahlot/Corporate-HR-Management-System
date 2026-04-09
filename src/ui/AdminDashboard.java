@@ -1,6 +1,7 @@
 package ui;
 
 import db.DBConnection;
+import exceptions.PhoneNumberValidationException;
 import java.awt.*;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -10,14 +11,22 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import models.User;
 
-public class AdminDashboard {
+/**
+ * AdminDashboard Class
+ * Demonstrates inheritance from abstract Dashboard class (CO2)
+ * Shows polymorphism through different implementation than EmployeeDashboard
+ */
+public class AdminDashboard extends Dashboard {
 
-    private JFrame frame;
     private JPanel contentPanel;
-    private User currentUser;
 
     public AdminDashboard(User user) {
-        this.currentUser = user;
+        super(user);
+        initializeDashboard();
+    }
+
+    @Override
+    public void initializeDashboard() {
 
         frame = new JFrame("Admin Dashboard");
         frame.setSize(1200, 750);
@@ -31,7 +40,7 @@ public class AdminDashboard {
         title.setFont(new Font("Arial", Font.BOLD, 24));
         title.setForeground(Color.WHITE);
 
-        JLabel subtitle = new JLabel("Admin Portal - Welcome, " + user.getUsername(), SwingConstants.RIGHT);
+        JLabel subtitle = new JLabel("Admin Portal - Welcome, " + currentUser.getUsername(), SwingConstants.RIGHT);
         subtitle.setFont(new Font("Arial", Font.PLAIN, 14));
         subtitle.setForeground(new Color(220, 235, 247));
 
@@ -1473,7 +1482,8 @@ public class AdminDashboard {
         }
     }
 
-    private void changePassword() {
+    @Override
+    public void changePassword() {
         String newPass = JOptionPane.showInputDialog(frame, "New Password");
 
         if (newPass == null || newPass.trim().isEmpty()) {
@@ -1501,7 +1511,7 @@ public class AdminDashboard {
         JComboBox<String> genderField = new JComboBox<>(new String[]{"Male", "Female", "Other"});
         JTextField emailField = new JTextField();
         JTextField dobField = new JTextField("YYYY-MM-DD");
-        JTextField streetField = new JTextField();
+        JTextField addressField = new JTextField();
         JTextField phoneField = new JTextField();
         JTextField phoneField2 = new JTextField();
         JComboBox<IdNameOption> deptField = new JComboBox<>();
@@ -1539,8 +1549,8 @@ public class AdminDashboard {
         panel.add(emailField);
         panel.add(new JLabel("DOB (YYYY-MM-DD):"));
         panel.add(dobField);
-        panel.add(new JLabel("Street:"));
-        panel.add(streetField);
+        panel.add(new JLabel("Address:"));
+        panel.add(addressField);
         panel.add(new JLabel("Phone Number 1:"));
         panel.add(phoneField);
         panel.add(new JLabel("Phone Number 2:"));
@@ -1565,6 +1575,10 @@ public class AdminDashboard {
         }
         if (password.isEmpty()) {
             JOptionPane.showMessageDialog(frame, "Login password is required");
+            return;
+        }
+        if (password.length() < 3) {
+            JOptionPane.showMessageDialog(frame, "Login password must be at least 3 characters long");
             return;
         }
 
@@ -1597,7 +1611,7 @@ public class AdminDashboard {
             ps.setString(3, (String) genderField.getSelectedItem());
             ps.setString(4, dobField.getText());
             ps.setString(5, emailField.getText());
-            ps.setString(6, streetField.getText());
+            ps.setString(6, addressField.getText());
             ps.setInt(7, selectedDepartment.id);
             ps.setInt(8, selectedRole.id);
             
@@ -1606,6 +1620,19 @@ public class AdminDashboard {
             // Insert phone numbers if provided
             String phoneNumber1 = phoneField.getText().trim();
             String phoneNumber2 = phoneField2.getText().trim();
+
+            try {
+                if (!phoneNumber1.isEmpty()) {
+                    validatePhoneNumber(phoneNumber1, "Phone Number 1");
+                }
+
+                if (!phoneNumber2.isEmpty()) {
+                    validatePhoneNumber(phoneNumber2, "Phone Number 2");
+                }
+            } catch (PhoneNumberValidationException e) {
+                JOptionPane.showMessageDialog(frame, e.getMessage());
+                return;
+            }
             
             if (!phoneNumber1.isEmpty()) {
                 PreparedStatement phonePs = con.prepareStatement(
@@ -1702,56 +1729,152 @@ public class AdminDashboard {
         try (Connection con = DBConnection.getConnection()) {
             con.setAutoCommit(false);
 
-            int deletedPayrollRows = 0;
+            try {
+                try (PreparedStatement deleteSalaryBreakdownPs = con.prepareStatement(
+                        "DELETE FROM Salary_Breakdown WHERE payroll_id IN (SELECT payroll_id FROM Payroll WHERE EmpID = ?)"
+                )) {
+                    deleteSalaryBreakdownPs.setInt(1, empId);
+                    deleteSalaryBreakdownPs.executeUpdate();
+                }
 
-            // Delete related records first
-            String deleteProjectsQuery = "DELETE FROM Employee_Projects WHERE EmpID = ?";
-            PreparedStatement deleteProjectsPs = con.prepareStatement(deleteProjectsQuery);
-            deleteProjectsPs.setInt(1, empId);
-            deleteProjectsPs.executeUpdate();
+                try (PreparedStatement deletePayrollPs = con.prepareStatement(
+                        "DELETE FROM Payroll WHERE EmpID = ?"
+                )) {
+                    deletePayrollPs.setInt(1, empId);
+                    deletePayrollPs.executeUpdate();
+                }
 
-            String deleteAttendanceQuery = "DELETE FROM Attendance_Log WHERE EmpID = ?";
-            PreparedStatement deleteAttendancePs = con.prepareStatement(deleteAttendanceQuery);
-            deleteAttendancePs.setInt(1, empId);
-            deleteAttendancePs.executeUpdate();
+                try (PreparedStatement deleteEmployeeProjectLinksPs = con.prepareStatement(
+                        "DELETE FROM Employee_Projects WHERE EmpID = ? OR project_id IN (SELECT project_id FROM Projects WHERE TeamLead = ?)"
+                )) {
+                    deleteEmployeeProjectLinksPs.setInt(1, empId);
+                    deleteEmployeeProjectLinksPs.setInt(2, empId);
+                    deleteEmployeeProjectLinksPs.executeUpdate();
+                }
 
-            String deleteLeaveQuery = "DELETE FROM Leave_Request WHERE EmpID = ?";
-            PreparedStatement deleteLeavePs = con.prepareStatement(deleteLeaveQuery);
-            deleteLeavePs.setInt(1, empId);
-            deleteLeavePs.executeUpdate();
+                try (PreparedStatement deleteProjectsPs = con.prepareStatement(
+                        "DELETE FROM Projects WHERE TeamLead = ?"
+                )) {
+                    deleteProjectsPs.setInt(1, empId);
+                    deleteProjectsPs.executeUpdate();
+                }
 
-            String deletePayrollQuery = "DELETE FROM Payroll WHERE EmpID = ?";
-            PreparedStatement deletePayrollPs = con.prepareStatement(deletePayrollQuery);
-            deletePayrollPs.setInt(1, empId);
-            deletedPayrollRows = deletePayrollPs.executeUpdate();
+                try (PreparedStatement deleteAttendancePs = con.prepareStatement(
+                        "DELETE FROM Attendance_Log WHERE EmpID = ?"
+                )) {
+                    deleteAttendancePs.setInt(1, empId);
+                    deleteAttendancePs.executeUpdate();
+                }
 
-            String deletePhonesQuery = "DELETE FROM Employee_Phones WHERE EmpID = ?";
-            PreparedStatement deletePhonesPs = con.prepareStatement(deletePhonesQuery);
-            deletePhonesPs.setInt(1, empId);
-            deletePhonesPs.executeUpdate();
+                try (PreparedStatement deleteSickLeavePs = con.prepareStatement(
+                        "DELETE FROM Sick_Leave WHERE leave_id IN (SELECT leave_id FROM Leave_Request WHERE EmpID = ?)"
+                )) {
+                    deleteSickLeavePs.setInt(1, empId);
+                    deleteSickLeavePs.executeUpdate();
+                }
 
-            // Delete the employee
-            String deleteEmpQuery = "DELETE FROM Employee WHERE EmpID = ?";
-            PreparedStatement deleteEmpPs = con.prepareStatement(deleteEmpQuery);
-            deleteEmpPs.setInt(1, empId);
-            int rows = deleteEmpPs.executeUpdate();
+                try (PreparedStatement deleteCasualLeavePs = con.prepareStatement(
+                        "DELETE FROM Casual_Leave WHERE leave_id IN (SELECT leave_id FROM Leave_Request WHERE EmpID = ?)"
+                )) {
+                    deleteCasualLeavePs.setInt(1, empId);
+                    deleteCasualLeavePs.executeUpdate();
+                }
 
-            if (rows > 0) {
-                String deleteUserQuery = "DELETE FROM users WHERE id = ? AND role = ?";
-                PreparedStatement deleteUserPs = con.prepareStatement(deleteUserQuery);
-                deleteUserPs.setInt(1, empId);
-                deleteUserPs.setString(2, "employee");
-                deleteUserPs.executeUpdate();
-            }
+                try (PreparedStatement deletePaidLeavePs = con.prepareStatement(
+                        "DELETE FROM Paid_Leave WHERE leave_id IN (SELECT leave_id FROM Leave_Request WHERE EmpID = ?)"
+                )) {
+                    deletePaidLeavePs.setInt(1, empId);
+                    deletePaidLeavePs.executeUpdate();
+                }
 
-            con.commit();
-            con.setAutoCommit(true);
+                try (PreparedStatement deleteLeavePs = con.prepareStatement(
+                        "DELETE FROM Leave_Request WHERE EmpID = ?"
+                )) {
+                    deleteLeavePs.setInt(1, empId);
+                    deleteLeavePs.executeUpdate();
+                }
 
-            if (rows > 0) {
-                JOptionPane.showMessageDialog(frame, "Employee removed successfully");
-                showEmployees();
-            } else {
-                JOptionPane.showMessageDialog(frame, "Employee not found");
+                try (PreparedStatement deleteRecruitmentPs = con.prepareStatement(
+                        "DELETE FROM Recruitment WHERE EmpID = ? OR recruiter_id = ?"
+                )) {
+                    deleteRecruitmentPs.setInt(1, empId);
+                    deleteRecruitmentPs.setInt(2, empId);
+                    deleteRecruitmentPs.executeUpdate();
+                }
+
+                try (PreparedStatement deleteInternPs = con.prepareStatement(
+                        "DELETE FROM Intern WHERE EmpID = ?"
+                )) {
+                    deleteInternPs.setInt(1, empId);
+                    deleteInternPs.executeUpdate();
+                }
+
+                try (PreparedStatement deleteFullTimePs = con.prepareStatement(
+                        "DELETE FROM Full_Time WHERE EmpID = ?"
+                )) {
+                    deleteFullTimePs.setInt(1, empId);
+                    deleteFullTimePs.executeUpdate();
+                }
+
+                try (PreparedStatement deleteBranchDeptPs = con.prepareStatement(
+                        "DELETE FROM Branch_Dept WHERE branch_id IN (SELECT branch_id FROM Branch WHERE mgr_id = ?)"
+                )) {
+                    deleteBranchDeptPs.setInt(1, empId);
+                    deleteBranchDeptPs.executeUpdate();
+                }
+
+                try (PreparedStatement deleteBranchesPs = con.prepareStatement(
+                        "DELETE FROM Branch WHERE mgr_id = ?"
+                )) {
+                    deleteBranchesPs.setInt(1, empId);
+                    deleteBranchesPs.executeUpdate();
+                }
+
+                try (PreparedStatement deletePhonesPs = con.prepareStatement(
+                        "DELETE FROM Employee_Phones WHERE EmpID = ?"
+                )) {
+                    deletePhonesPs.setInt(1, empId);
+                    deletePhonesPs.executeUpdate();
+                }
+
+                try (PreparedStatement deleteUserCredsPs = con.prepareStatement(
+                        "DELETE FROM user_credentials WHERE EmpID = ?"
+                )) {
+                    deleteUserCredsPs.setInt(1, empId);
+                    deleteUserCredsPs.executeUpdate();
+                }
+
+                int rows;
+                try (PreparedStatement deleteEmpPs = con.prepareStatement(
+                        "DELETE FROM Employee WHERE EmpID = ?"
+                )) {
+                    deleteEmpPs.setInt(1, empId);
+                    rows = deleteEmpPs.executeUpdate();
+                }
+
+                if (rows > 0) {
+                    try (PreparedStatement deleteUserPs = con.prepareStatement(
+                            "DELETE FROM users WHERE id = ? AND role = ?"
+                    )) {
+                        deleteUserPs.setInt(1, empId);
+                        deleteUserPs.setString(2, "employee");
+                        deleteUserPs.executeUpdate();
+                    }
+                }
+
+                con.commit();
+
+                if (rows > 0) {
+                    JOptionPane.showMessageDialog(frame, "Employee removed successfully");
+                    showEmployees();
+                } else {
+                    JOptionPane.showMessageDialog(frame, "Employee not found");
+                }
+            } catch (Exception e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(true);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -1786,7 +1909,7 @@ public class AdminDashboard {
             genderField.setSelectedItem(rs.getString("Gender"));
             JTextField dobField = new JTextField(rs.getDate("DOB") != null ? rs.getDate("DOB").toString() : "");
             JTextField emailField = new JTextField(rs.getString("Email"));
-            JTextField streetField = new JTextField(rs.getString("Street"));
+            JTextField addressField = new JTextField(rs.getString("Street"));
             JTextField phoneField1 = new JTextField();
             JTextField phoneField2 = new JTextField();
             JComboBox<IdNameOption> deptField = new JComboBox<>();
@@ -1861,8 +1984,8 @@ public class AdminDashboard {
             panel.add(dobField);
             panel.add(new JLabel("Email:"));
             panel.add(emailField);
-            panel.add(new JLabel("Street:"));
-            panel.add(streetField);
+            panel.add(new JLabel("Address:"));
+            panel.add(addressField);
             panel.add(new JLabel("Phone Number 1:"));
             panel.add(phoneField1);
             panel.add(new JLabel("Phone Number 2:"));
@@ -1879,18 +2002,6 @@ public class AdminDashboard {
                 return;
             }
 
-            con.setAutoCommit(false);
-
-            int rows;
-            PreparedStatement updatePs = con.prepareStatement(
-                    "UPDATE Employee SET Emp_name = ?, Gender = ?, DOB = ?, Email = ?, Street = ?, department_id = ?, role_id = ? WHERE EmpID = ?"
-            );
-            updatePs.setString(1, nameField.getText().trim());
-            updatePs.setString(2, (String) genderField.getSelectedItem());
-            updatePs.setString(3, dobField.getText().trim().isEmpty() ? null : dobField.getText().trim());
-            updatePs.setString(4, emailField.getText().trim());
-            updatePs.setString(5, streetField.getText().trim());
-
             IdNameOption selectedDepartment = (IdNameOption) deptField.getSelectedItem();
             IdNameOption selectedRole = (IdNameOption) roleField.getSelectedItem();
 
@@ -1899,59 +2010,80 @@ public class AdminDashboard {
                 return;
             }
 
-            updatePs.setInt(6, selectedDepartment.id);
-            updatePs.setInt(7, selectedRole.id);
-
-            updatePs.setInt(8, empId);
-            rows = updatePs.executeUpdate();
-
-            // Update phone numbers
-            PreparedStatement deletePhonePs = con.prepareStatement(
-                    "DELETE FROM Employee_Phones WHERE EmpID = ?"
-            );
-            deletePhonePs.setInt(1, empId);
-            deletePhonePs.executeUpdate();
-
             String phone1 = phoneField1.getText().trim();
             String phone2 = phoneField2.getText().trim();
+            java.util.LinkedHashSet<String> phoneNumbersToSave = new java.util.LinkedHashSet<>();
 
-            if (!phone1.isEmpty()) {
-                PreparedStatement insertPhone1Ps = con.prepareStatement(
-                        "INSERT INTO Employee_Phones (EmpID, Phone_Number) VALUES (?, ?)"
-                );
-                insertPhone1Ps.setInt(1, empId);
-                insertPhone1Ps.setString(2, phone1);
-                insertPhone1Ps.executeUpdate();
-            }
-
-            if (!phone2.isEmpty()) {
-                PreparedStatement insertPhone2Ps = con.prepareStatement(
-                        "INSERT INTO Employee_Phones (EmpID, Phone_Number) VALUES (?, ?)"
-                );
-                insertPhone2Ps.setInt(1, empId);
-                insertPhone2Ps.setString(2, phone2);
-                insertPhone2Ps.executeUpdate();
-            }
-
-                String updatedUsername = usernameField.getText().trim();
-                if (updatedUsername.isEmpty()) {
-                JOptionPane.showMessageDialog(frame, "Username is required");
-                return;
+            try {
+                if (!phone1.isEmpty()) {
+                    validatePhoneNumber(phone1, "Phone Number 1");
+                    phoneNumbersToSave.add(phone1);
                 }
 
-                PreparedStatement checkUserPs = con.prepareStatement(
+                if (!phone2.isEmpty()) {
+                    validatePhoneNumber(phone2, "Phone Number 2");
+                    if (!phoneNumbersToSave.add(phone2)) {
+                        JOptionPane.showMessageDialog(frame, "Phone numbers must be unique");
+                        return;
+                    }
+                }
+            } catch (PhoneNumberValidationException e) {
+                JOptionPane.showMessageDialog(frame, e.getMessage());
+                return;
+            }
+
+            String updatedUsername = usernameField.getText().trim();
+            if (updatedUsername.isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "Username is required");
+                return;
+            }
+
+            PreparedStatement checkUserPs = con.prepareStatement(
                     "SELECT id FROM users WHERE username = ? AND id <> ?"
-                );
-                checkUserPs.setString(1, updatedUsername);
-                checkUserPs.setInt(2, empId);
-                ResultSet usernameConflictRs = checkUserPs.executeQuery();
-                if (usernameConflictRs.next()) {
+            );
+            checkUserPs.setString(1, updatedUsername);
+            checkUserPs.setInt(2, empId);
+            ResultSet usernameConflictRs = checkUserPs.executeQuery();
+            if (usernameConflictRs.next()) {
                 JOptionPane.showMessageDialog(frame, "Username already exists. Please choose another.");
                 return;
+            }
+
+            con.setAutoCommit(false);
+
+            try {
+                int rows;
+                PreparedStatement updatePs = con.prepareStatement(
+                        "UPDATE Employee SET Emp_name = ?, Gender = ?, DOB = ?, Email = ?, Street = ?, department_id = ?, role_id = ? WHERE EmpID = ?"
+                );
+                updatePs.setString(1, nameField.getText().trim());
+                updatePs.setString(2, (String) genderField.getSelectedItem());
+                updatePs.setString(3, dobField.getText().trim().isEmpty() ? null : dobField.getText().trim());
+                updatePs.setString(4, emailField.getText().trim());
+                updatePs.setString(5, addressField.getText().trim());
+                updatePs.setInt(6, selectedDepartment.id);
+                updatePs.setInt(7, selectedRole.id);
+                updatePs.setInt(8, empId);
+                rows = updatePs.executeUpdate();
+
+                PreparedStatement deletePhonePs = con.prepareStatement(
+                        "DELETE FROM Employee_Phones WHERE EmpID = ?"
+                );
+                deletePhonePs.setInt(1, empId);
+                deletePhonePs.executeUpdate();
+
+                for (String phoneNumber : phoneNumbersToSave) {
+                    try (PreparedStatement insertPhonePs = con.prepareStatement(
+                            "INSERT INTO Employee_Phones (EmpID, Phone_Number) VALUES (?, ?)"
+                    )) {
+                        insertPhonePs.setInt(1, empId);
+                        insertPhonePs.setString(2, phoneNumber);
+                        insertPhonePs.executeUpdate();
+                    }
                 }
 
                 PreparedStatement updateUsernamePs = con.prepareStatement(
-                    "UPDATE users SET username = ? WHERE id = ? AND role = ?"
+                        "UPDATE users SET username = ? WHERE id = ? AND role = ?"
                 );
                 updateUsernamePs.setString(1, updatedUsername);
                 updateUsernamePs.setInt(2, empId);
@@ -1959,46 +2091,53 @@ public class AdminDashboard {
                 int usernameRows = updateUsernamePs.executeUpdate();
 
                 if (usernameRows == 0) {
-                PreparedStatement createUserPs = con.prepareStatement(
-                    "INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)"
-                );
-                createUserPs.setInt(1, empId);
-                createUserPs.setString(2, updatedUsername);
-                createUserPs.setString(3, "changeme");
-                createUserPs.setString(4, "employee");
-                createUserPs.executeUpdate();
+                    try (PreparedStatement createUserPs = con.prepareStatement(
+                            "INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)"
+                    )) {
+                        createUserPs.setInt(1, empId);
+                        createUserPs.setString(2, updatedUsername);
+                        createUserPs.setString(3, "changeme");
+                        createUserPs.setString(4, "employee");
+                        createUserPs.executeUpdate();
+                    }
                 }
 
-            String newPassword = new String(passwordField.getPassword()).trim();
-            if (!newPassword.isEmpty()) {
-                PreparedStatement updateUserPs = con.prepareStatement(
-                    "UPDATE users SET password = ? WHERE id = ? AND role = ?"
-                );
-                updateUserPs.setString(1, newPassword);
-                updateUserPs.setInt(2, empId);
-                updateUserPs.setString(3, "employee");
-                int userRows = updateUserPs.executeUpdate();
-
-                if (userRows == 0) {
-                    PreparedStatement insertUserPs = con.prepareStatement(
-                        "INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)"
+                String newPassword = new String(passwordField.getPassword()).trim();
+                if (!newPassword.isEmpty()) {
+                    PreparedStatement updateUserPs = con.prepareStatement(
+                            "UPDATE users SET password = ? WHERE id = ? AND role = ?"
                     );
-                    insertUserPs.setInt(1, empId);
-                    insertUserPs.setString(2, updatedUsername);
-                    insertUserPs.setString(3, newPassword);
-                    insertUserPs.setString(4, "employee");
-                    insertUserPs.executeUpdate();
+                    updateUserPs.setString(1, newPassword);
+                    updateUserPs.setInt(2, empId);
+                    updateUserPs.setString(3, "employee");
+                    int userRows = updateUserPs.executeUpdate();
+
+                    if (userRows == 0) {
+                        try (PreparedStatement insertUserPs = con.prepareStatement(
+                                "INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)"
+                        )) {
+                            insertUserPs.setInt(1, empId);
+                            insertUserPs.setString(2, updatedUsername);
+                            insertUserPs.setString(3, newPassword);
+                            insertUserPs.setString(4, "employee");
+                            insertUserPs.executeUpdate();
+                        }
+                    }
                 }
-            }
 
-            con.commit();
-            con.setAutoCommit(true);
+                con.commit();
 
-            if (rows > 0) {
-                JOptionPane.showMessageDialog(frame, "Employee updated successfully");
-                showEmployees();
-            } else {
-                JOptionPane.showMessageDialog(frame, "No changes were made");
+                if (rows > 0) {
+                    JOptionPane.showMessageDialog(frame, "Employee updated successfully");
+                    showEmployees();
+                } else {
+                    JOptionPane.showMessageDialog(frame, "No changes were made");
+                }
+            } catch (Exception e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(true);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -2417,14 +2556,27 @@ public class AdminDashboard {
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
     }
 
-    private void logout() {
+    @Override
+    public void logout() {
         frame.dispose();
         new LoginUI();
+    }
+
+    @Override
+    public void showDashboard() {
+        frame.setVisible(true);
+        showSummary();
     }
 
     private void refresh() {
         contentPanel.revalidate();
         contentPanel.repaint();
+    }
+
+    private void validatePhoneNumber(String phoneNumber, String fieldLabel) throws PhoneNumberValidationException {
+        if (phoneNumber == null || !phoneNumber.matches("\\d{10}")) {
+            throw new PhoneNumberValidationException(fieldLabel + " must be exactly 10 digits");
+        }
     }
 }
 

@@ -59,8 +59,9 @@ CREATE TABLE Employee (
 
 CREATE TABLE Employee_Phones (
     EmpID INT,
-    Phone_Number VARCHAR(10),
+    Phone_Number CHAR(10),
     PRIMARY KEY (EmpID, Phone_Number),
+    CONSTRAINT chk_employee_phones_phone_number CHECK (Phone_Number REGEXP '^[0-9]{10}$'),
     FOREIGN KEY (EmpID) REFERENCES Employee(EmpID)
 );
 

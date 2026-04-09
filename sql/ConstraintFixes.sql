@@ -11,3 +11,6 @@ FOREIGN KEY (role_id) REFERENCES Job_Role(role_id);
 ALTER TABLE Employee 
 MODIFY department_id INT NOT NULL,
 MODIFY role_id INT NOT NULL;
+
+ALTER TABLE Employee_Phones
+ADD CONSTRAINT chk_employee_phones_phone_number CHECK (Phone_Number REGEXP '^[0-9]{10}$');

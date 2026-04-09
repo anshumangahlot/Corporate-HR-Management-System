@@ -3,18 +3,28 @@ package ui;
 import db.DBConnection;
 import java.awt.*;
 import java.sql.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import models.User;
 
-public class EmployeeDashboard {
+/**
+ * EmployeeDashboard Class
+ * Demonstrates inheritance from abstract Dashboard class (CO2)
+ * Shows polymorphism through different implementation than AdminDashboard
+ */
+public class EmployeeDashboard extends Dashboard {
 
-    private JFrame frame;
     private JPanel contentPanel;
-    private User currentUser;
 
     public EmployeeDashboard(User user) {
-        this.currentUser = user;
+        super(user);
+        initializeDashboard();
+    }
+
+    @Override
+    public void initializeDashboard() {
 
         frame = new JFrame("Employee Dashboard");
         frame.setSize(1200, 750);
@@ -28,7 +38,7 @@ public class EmployeeDashboard {
         title.setFont(new Font("Arial", Font.BOLD, 24));
         title.setForeground(Color.WHITE);
 
-        JLabel subtitle = new JLabel("Employee Portal - Welcome, " + user.getUsername(), SwingConstants.RIGHT);
+        JLabel subtitle = new JLabel("Employee Portal - Welcome, " + currentUser.getUsername(), SwingConstants.RIGHT);
         subtitle.setFont(new Font("Arial", Font.PLAIN, 14));
         subtitle.setForeground(new Color(220, 235, 247));
 
@@ -174,7 +184,7 @@ public class EmployeeDashboard {
                 addProfileField(profilePanel, "Gender:", rs.getString("Gender"));
                 addProfileField(profilePanel, "DOB:", rs.getDate("DOB") != null ? rs.getDate("DOB").toString() : "N/A");
                 addProfileField(profilePanel, "Email:", rs.getString("Email"));
-                addProfileField(profilePanel, "Street:", rs.getString("Street"));
+                addProfileField(profilePanel, "Address:", rs.getString("Street"));
 
                 PreparedStatement phonePs = con.prepareStatement("SELECT Phone_Number FROM Employee_Phones WHERE EmpID = ? ORDER BY Phone_Number");
                 phonePs.setInt(1, empId);
@@ -467,6 +477,21 @@ public class EmployeeDashboard {
         String end = JOptionPane.showInputDialog("End Date (YYYY-MM-DD)");
 
         if (start == null || end == null || start.trim().isEmpty() || end.trim().isEmpty()) {
+            return;
+        }
+
+        // Validate that end date is after start date
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            LocalDate startDate = LocalDate.parse(start.trim(), formatter);
+            LocalDate endDate = LocalDate.parse(end.trim(), formatter);
+
+            if (!endDate.isAfter(startDate)) {
+                JOptionPane.showMessageDialog(frame, "End date must be after start date");
+                return;
+            }
+        } catch (Exception dateEx) {
+            JOptionPane.showMessageDialog(frame, "Invalid date format. Please use YYYY-MM-DD");
             return;
         }
 
@@ -893,7 +918,8 @@ public class EmployeeDashboard {
         refresh();
     }
 
-    private void changePassword() {
+    @Override
+    public void changePassword() {
         String newPass = JOptionPane.showInputDialog("New Password");
 
         if (newPass == null || newPass.trim().isEmpty()) {
@@ -915,9 +941,16 @@ public class EmployeeDashboard {
         }
     }
 
-    private void logout() {
+    @Override
+    public void logout() {
         frame.dispose();
         new LoginUI();
+    }
+
+    @Override
+    public void showDashboard() {
+        frame.setVisible(true);
+        showProfile();
     }
 
     private void refresh() {
