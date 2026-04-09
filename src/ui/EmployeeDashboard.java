@@ -26,7 +26,7 @@ public class EmployeeDashboard extends Dashboard {
     @Override
     public void initializeDashboard() {
 
-        frame = new JFrame("Employee Dashboard");
+        frame = new JFrame(APPLICATION_NAME + " - Employee Dashboard");
         frame.setSize(1200, 750);
         frame.setLayout(new BorderLayout());
 
@@ -34,7 +34,7 @@ public class EmployeeDashboard extends Dashboard {
         headerPanel.setBackground(new Color(41, 128, 185));
         headerPanel.setBorder(BorderFactory.createEmptyBorder(16, 24, 16, 24));
 
-        JLabel title = new JLabel("HR Management System", SwingConstants.LEFT);
+        JLabel title = new JLabel(APPLICATION_NAME, SwingConstants.LEFT);
         title.setFont(new Font("Arial", Font.BOLD, 24));
         title.setForeground(Color.WHITE);
 

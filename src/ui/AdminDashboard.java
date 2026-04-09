@@ -2,7 +2,10 @@ package ui;
 
 import db.DBConnection;
 import exceptions.PhoneNumberValidationException;
+import exceptions.ValidationException;
 import java.awt.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -28,7 +31,7 @@ public class AdminDashboard extends Dashboard {
     @Override
     public void initializeDashboard() {
 
-        frame = new JFrame("Admin Dashboard");
+        frame = new JFrame(APPLICATION_NAME + " - Admin Dashboard");
         frame.setSize(1200, 750);
         frame.setLayout(new BorderLayout());
 
@@ -36,7 +39,7 @@ public class AdminDashboard extends Dashboard {
         headerPanel.setBackground(new Color(41, 128, 185));
         headerPanel.setBorder(BorderFactory.createEmptyBorder(16, 24, 16, 24));
 
-        JLabel title = new JLabel("HR Management System", SwingConstants.LEFT);
+        JLabel title = new JLabel(APPLICATION_NAME, SwingConstants.LEFT);
         title.setFont(new Font("Arial", Font.BOLD, 24));
         title.setForeground(Color.WHITE);
 
@@ -804,36 +807,58 @@ public class AdminDashboard extends Dashboard {
             return;
         }
 
+        try {
+            validateDateRange(startField.getText().trim(), endField.getText().trim());
+        } catch (ValidationException e) {
+            JOptionPane.showMessageDialog(frame, e.getMessage());
+            return;
+        }
+
         try (Connection con = DBConnection.getConnection()) {
-            String maxIdQuery = "SELECT COALESCE(MAX(project_id), 0) + 1 AS next_id FROM Projects";
-            PreparedStatement getIdPs = con.prepareStatement(maxIdQuery);
-            ResultSet idRs = getIdPs.executeQuery();
-            int nextId = 1;
-            if (idRs.next()) {
-                nextId = idRs.getInt("next_id");
+            con.setAutoCommit(false);
+
+            try {
+                String maxIdQuery = "SELECT COALESCE(MAX(project_id), 0) + 1 AS next_id FROM Projects";
+                int nextId;
+                try (PreparedStatement getIdPs = con.prepareStatement(maxIdQuery);
+                     ResultSet idRs = getIdPs.executeQuery()) {
+                    nextId = 1;
+                    if (idRs.next()) {
+                        nextId = idRs.getInt("next_id");
+                    }
+                }
+
+                // Extract department ID from selected item
+                String deptSelection = (String) deptBox.getSelectedItem();
+                int deptId = Integer.parseInt(deptSelection.split(" - ")[0]);
+
+                // Extract team lead ID from selected item
+                String leadSelection = (String) leadBox.getSelectedItem();
+                int teamLeadId = Integer.parseInt(leadSelection.split(" - ")[0]);
+
+                String insertQuery = "INSERT INTO Projects (project_id, PName, StartDate, EndDate, Status, TeamLead, dept_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                try (PreparedStatement ps = con.prepareStatement(insertQuery)) {
+                    ps.setInt(1, nextId);
+                    ps.setString(2, nameField.getText().trim());
+                    ps.setString(3, startField.getText().trim());
+                    ps.setString(4, endField.getText().trim());
+                    ps.setString(5, statusField.getText().trim());
+                    ps.setInt(6, teamLeadId);
+                    ps.setInt(7, deptId);
+                    ps.executeUpdate();
+                }
+
+                ensureProjectTeamLeadMember(con, nextId, teamLeadId);
+
+                con.commit();
+                JOptionPane.showMessageDialog(frame, "Project added successfully");
+                showProjects();
+            } catch (Exception e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(true);
             }
-
-            // Extract department ID from selected item
-            String deptSelection = (String) deptBox.getSelectedItem();
-            int deptId = Integer.parseInt(deptSelection.split(" - ")[0]);
-
-            // Extract team lead ID from selected item
-            String leadSelection = (String) leadBox.getSelectedItem();
-            int teamLeadId = Integer.parseInt(leadSelection.split(" - ")[0]);
-
-            String insertQuery = "INSERT INTO Projects (project_id, PName, StartDate, EndDate, Status, TeamLead, dept_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
-            PreparedStatement ps = con.prepareStatement(insertQuery);
-            ps.setInt(1, nextId);
-            ps.setString(2, nameField.getText().trim());
-            ps.setString(3, startField.getText());
-            ps.setString(4, endField.getText());
-            ps.setString(5, statusField.getText());
-            ps.setInt(6, teamLeadId);
-            ps.setInt(7, deptId);
-            ps.executeUpdate();
-
-            JOptionPane.showMessageDialog(frame, "Project added successfully");
-            showProjects();
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(frame, "Error adding project: " + e.getMessage());
@@ -991,6 +1016,13 @@ public class AdminDashboard extends Dashboard {
                 return;
             }
 
+            try {
+                validateDateRange(startField.getText().trim(), endField.getText().trim());
+            } catch (ValidationException e) {
+                JOptionPane.showMessageDialog(frame, e.getMessage());
+                return;
+            }
+
             // Extract department ID from selected item
             String deptSelection = (String) deptBox.getSelectedItem();
             int deptId = Integer.parseInt(deptSelection.split(" - ")[0]);
@@ -999,20 +1031,36 @@ public class AdminDashboard extends Dashboard {
             String leadSelection = (String) leadBox.getSelectedItem();
             int teamLeadId = Integer.parseInt(leadSelection.split(" - ")[0]);
 
-            try (PreparedStatement updatePs = con.prepareStatement(
-                    "UPDATE Projects SET PName = ?, StartDate = ?, EndDate = ?, Status = ?, TeamLead = ?, dept_id = ? WHERE project_id = ?")) {
-                updatePs.setString(1, nameField.getText().trim());
-                updatePs.setString(2, startField.getText().trim());
-                updatePs.setString(3, endField.getText().trim());
-                updatePs.setString(4, statusField.getText().trim());
-                updatePs.setInt(5, teamLeadId);
-                updatePs.setInt(6, deptId);
-                updatePs.setInt(7, projectId);
-                updatePs.executeUpdate();
-            }
+            int previousTeamLeadId = rs.getInt("TeamLead");
 
-            JOptionPane.showMessageDialog(frame, "Project updated successfully");
-            showProjects();
+            con.setAutoCommit(false);
+            try {
+                try (PreparedStatement updatePs = con.prepareStatement(
+                        "UPDATE Projects SET PName = ?, StartDate = ?, EndDate = ?, Status = ?, TeamLead = ?, dept_id = ? WHERE project_id = ?")) {
+                    updatePs.setString(1, nameField.getText().trim());
+                    updatePs.setString(2, startField.getText().trim());
+                    updatePs.setString(3, endField.getText().trim());
+                    updatePs.setString(4, statusField.getText().trim());
+                    updatePs.setInt(5, teamLeadId);
+                    updatePs.setInt(6, deptId);
+                    updatePs.setInt(7, projectId);
+                    updatePs.executeUpdate();
+                }
+
+                ensureProjectTeamLeadMember(con, projectId, teamLeadId);
+                if (previousTeamLeadId != teamLeadId) {
+                    demotePreviousProjectLead(con, projectId, previousTeamLeadId);
+                }
+
+                con.commit();
+                JOptionPane.showMessageDialog(frame, "Project updated successfully");
+                showProjects();
+            } catch (Exception e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(true);
+            }
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(frame, "Error updating project: " + e.getMessage());
@@ -1133,6 +1181,20 @@ public class AdminDashboard extends Dashboard {
                 return;
             }
             int empId = (int) teamModel.getValueAt(selectedRow, 0);
+            try (Connection con = DBConnection.getConnection();
+                 PreparedStatement leadPs = con.prepareStatement("SELECT TeamLead FROM Projects WHERE project_id = ?")) {
+                leadPs.setInt(1, projectId);
+                try (ResultSet leadRs = leadPs.executeQuery()) {
+                    if (leadRs.next() && leadRs.getInt("TeamLead") == empId) {
+                        JOptionPane.showMessageDialog(dialog, "The team lead is automatically part of the project and cannot be removed.");
+                        return;
+                    }
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                JOptionPane.showMessageDialog(dialog, "Error checking project lead: " + ex.getMessage());
+                return;
+            }
             removeEmployeeFromProject(projectId, empId, dialog, teamModel);
         });
         closeBtn.addActionListener(e -> dialog.dispose());
@@ -1582,9 +1644,22 @@ public class AdminDashboard extends Dashboard {
             return;
         }
 
+        String email = emailField.getText().trim();
+        try {
+            validateEmailAddress(email);
+            validateBirthDate(dobField.getText().trim());
+        } catch (ValidationException e) {
+            JOptionPane.showMessageDialog(frame, e.getMessage());
+            return;
+        }
+
         try (Connection con = DBConnection.getConnection()) {
             con.setAutoCommit(false);
             int empId = Integer.parseInt(idField.getText().trim());
+            if (empId == 1) {
+                JOptionPane.showMessageDialog(frame, "ID 1 is reserved for admin");
+                return;
+            }
             IdNameOption selectedDepartment = (IdNameOption) deptField.getSelectedItem();
             IdNameOption selectedRole = (IdNameOption) roleField.getSelectedItem();
             String username = usernameInput;
@@ -1609,8 +1684,8 @@ public class AdminDashboard extends Dashboard {
             ps.setInt(1, empId);
             ps.setString(2, nameField.getText());
             ps.setString(3, (String) genderField.getSelectedItem());
-            ps.setString(4, dobField.getText());
-            ps.setString(5, emailField.getText());
+            ps.setString(4, dobField.getText().trim());
+            ps.setString(5, email);
             ps.setString(6, addressField.getText());
             ps.setInt(7, selectedDepartment.id);
             ps.setInt(8, selectedRole.id);
@@ -2038,6 +2113,15 @@ public class AdminDashboard extends Dashboard {
                 return;
             }
 
+            String email = emailField.getText().trim();
+            try {
+                validateEmailAddress(email);
+                validateBirthDate(dobField.getText().trim());
+            } catch (ValidationException e) {
+                JOptionPane.showMessageDialog(frame, e.getMessage());
+                return;
+            }
+
             PreparedStatement checkUserPs = con.prepareStatement(
                     "SELECT id FROM users WHERE username = ? AND id <> ?"
             );
@@ -2058,8 +2142,8 @@ public class AdminDashboard extends Dashboard {
                 );
                 updatePs.setString(1, nameField.getText().trim());
                 updatePs.setString(2, (String) genderField.getSelectedItem());
-                updatePs.setString(3, dobField.getText().trim().isEmpty() ? null : dobField.getText().trim());
-                updatePs.setString(4, emailField.getText().trim());
+                updatePs.setString(3, dobField.getText().trim());
+                updatePs.setString(4, email);
                 updatePs.setString(5, addressField.getText().trim());
                 updatePs.setInt(6, selectedDepartment.id);
                 updatePs.setInt(7, selectedRole.id);
@@ -2576,6 +2660,91 @@ public class AdminDashboard extends Dashboard {
     private void validatePhoneNumber(String phoneNumber, String fieldLabel) throws PhoneNumberValidationException {
         if (phoneNumber == null || !phoneNumber.matches("\\d{10}")) {
             throw new PhoneNumberValidationException(fieldLabel + " must be exactly 10 digits");
+        }
+    }
+
+    private void validateEmailAddress(String email) throws ValidationException {
+        if (email == null || email.trim().isEmpty()) {
+            throw new ValidationException("Email is required");
+        }
+
+        String normalizedEmail = email.trim();
+        String emailRegex = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$";
+        if (!normalizedEmail.matches(emailRegex)) {
+            throw new ValidationException("Please enter a valid email address");
+        }
+    }
+
+    private void validateDateRange(String startDateText, String endDateText) throws ValidationException {
+        if (startDateText == null || startDateText.trim().isEmpty()) {
+            throw new ValidationException("Start Date is required");
+        }
+        if (endDateText == null || endDateText.trim().isEmpty()) {
+            throw new ValidationException("End Date is required");
+        }
+
+        try {
+            LocalDate startDate = LocalDate.parse(startDateText.trim());
+            LocalDate endDate = LocalDate.parse(endDateText.trim());
+
+            if (!startDate.isBefore(endDate)) {
+                throw new ValidationException("Start date must be before end date");
+            }
+        } catch (DateTimeParseException e) {
+            throw new ValidationException("Please enter dates in YYYY-MM-DD format");
+        }
+    }
+
+    private void ensureProjectTeamLeadMember(Connection con, int projectId, int teamLeadId) throws Exception {
+        try (PreparedStatement checkPs = con.prepareStatement(
+                "SELECT 1 FROM Employee_Projects WHERE EmpID = ? AND project_id = ?")) {
+            checkPs.setInt(1, teamLeadId);
+            checkPs.setInt(2, projectId);
+            try (ResultSet rs = checkPs.executeQuery()) {
+                if (rs.next()) {
+                    try (PreparedStatement updatePs = con.prepareStatement(
+                            "UPDATE Employee_Projects SET role_in_project = ? WHERE EmpID = ? AND project_id = ?")) {
+                        updatePs.setString(1, "Team Lead");
+                        updatePs.setInt(2, teamLeadId);
+                        updatePs.setInt(3, projectId);
+                        updatePs.executeUpdate();
+                    }
+                } else {
+                    try (PreparedStatement insertPs = con.prepareStatement(
+                            "INSERT INTO Employee_Projects (EmpID, project_id, assigned_date, role_in_project, hours_per_week) VALUES (?, ?, CURDATE(), ?, ?)")) {
+                        insertPs.setInt(1, teamLeadId);
+                        insertPs.setInt(2, projectId);
+                        insertPs.setString(3, "Team Lead");
+                        insertPs.setInt(4, 40);
+                        insertPs.executeUpdate();
+                    }
+                }
+            }
+        }
+    }
+
+    private void demotePreviousProjectLead(Connection con, int projectId, int previousTeamLeadId) throws Exception {
+        try (PreparedStatement updatePs = con.prepareStatement(
+                "UPDATE Employee_Projects SET role_in_project = ? WHERE EmpID = ? AND project_id = ?")) {
+            updatePs.setString(1, "Developer");
+            updatePs.setInt(2, previousTeamLeadId);
+            updatePs.setInt(3, projectId);
+            updatePs.executeUpdate();
+        }
+    }
+
+    private void validateBirthDate(String birthDate) throws ValidationException {
+        if (birthDate == null || birthDate.trim().isEmpty()) {
+            throw new ValidationException("Birthdate is required");
+        }
+
+        try {
+            LocalDate parsedBirthDate = LocalDate.parse(birthDate.trim());
+            if (!parsedBirthDate.isBefore(LocalDate.now())) {
+                throw new ValidationException("Birthdate must be before the current date");
+            }
+        } catch (DateTimeParseException e) {
+            throw new ValidationException("Please enter birthdate in YYYY-MM-DD format");
         }
     }
 }

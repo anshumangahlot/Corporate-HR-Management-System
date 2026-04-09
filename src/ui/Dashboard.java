@@ -9,10 +9,15 @@ import javax.swing.*;
  * Provides common functionality for all dashboard types
  */
 public abstract class Dashboard {
-    
+    public static final String APPLICATION_NAME = "HR Management System";
+
     protected JFrame frame;
     protected JPanel contentPanel;
     protected User currentUser;
+
+    String dashboardScope = "package-private dashboard scope";
+
+    private final String dashboardType;
 
     /**
      * Constructor for Dashboard
@@ -20,6 +25,7 @@ public abstract class Dashboard {
      */
     public Dashboard(User user) {
         this.currentUser = user;
+        this.dashboardType = getClass().getSimpleName();
     }
 
     /**
@@ -47,6 +53,10 @@ public abstract class Dashboard {
      */
     public JFrame getFrame() {
         return frame;
+    }
+
+    public String getDashboardType() {
+        return dashboardType;
     }
 
     /**
