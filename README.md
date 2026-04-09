@@ -58,6 +58,3 @@ Supporting tables:
 - Generate reports  
 
 ---
-
-## Author
-Anshuman Gahlot
