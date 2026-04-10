@@ -11,7 +11,15 @@ import java.awt.*;
 
 public class LoginUI {
 
+    public LoginUI() {
+        initializeLoginUI();
+    }
+
     public static void main(String[] args) {
+        SwingUtilities.invokeLater(LoginUI::new);
+    }
+
+    private void initializeLoginUI() {
 
         JFrame frame = new JFrame("HR Management System - Login");
         frame.setSize(500, 600);
