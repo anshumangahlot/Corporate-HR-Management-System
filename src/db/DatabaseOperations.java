@@ -1,4 +1,4 @@
-package db;
+﻿package db;
 
 import exceptions.DatabaseException;
 import java.sql.*;
@@ -10,6 +10,7 @@ import java.sql.*;
  */
 public class DatabaseOperations {
 
+    // RBR
     // ============ INSERT OPERATIONS (DML) ============
 
     /**
@@ -18,6 +19,8 @@ public class DatabaseOperations {
      */
     public static boolean insertUser(String username, String password, String role) 
             throws DatabaseException {
+        // RBR
+        // DML-Insert
         String query = "INSERT INTO users (username, password, role) VALUES (?, ?, ?)";
         
         try (Connection con = DBConnection.getConnection();
@@ -41,6 +44,7 @@ public class DatabaseOperations {
     public static boolean insertEmployee(int empID, String empName, String gender, 
                                         Date dob, String email, int deptId, int roleId) 
             throws DatabaseException {
+        // DML-Insert
         String query = "INSERT INTO Employee (EmpID, Emp_name, Gender, DOB, Email, department_id, role_id) " +
                       "VALUES (?, ?, ?, ?, ?, ?, ?)";
         
@@ -63,6 +67,7 @@ public class DatabaseOperations {
         }
     }
 
+    // RBR
     // ============ UPDATE OPERATIONS (DML) ============
 
     /**
@@ -71,6 +76,8 @@ public class DatabaseOperations {
      */
     public static boolean updateUserPassword(int userId, String newPassword) 
             throws DatabaseException {
+        // RBR
+        // DML-Update
         String query = "UPDATE users SET password = ? WHERE id = ?";
         
         try (Connection con = DBConnection.getConnection();
@@ -92,6 +99,7 @@ public class DatabaseOperations {
      */
     public static boolean updateEmployeeInfo(int empID, String email, String street) 
             throws DatabaseException {
+        // DML-Update
         String query = "UPDATE Employee SET Email = ?, Street = ? WHERE EmpID = ?";
         
         try (Connection con = DBConnection.getConnection();
@@ -109,6 +117,7 @@ public class DatabaseOperations {
         }
     }
 
+    // RBR
     // ============ DELETE OPERATIONS (DML) ============
 
     /**
@@ -117,6 +126,8 @@ public class DatabaseOperations {
      */
     public static boolean deleteUser(int userId) 
             throws DatabaseException {
+        // RBR
+        // DML-Delete
         String query = "DELETE FROM users WHERE id = ?";
         
         try (Connection con = DBConnection.getConnection();
@@ -142,6 +153,7 @@ public class DatabaseOperations {
 
             try {
                 try (PreparedStatement deleteSalaryBreakdownPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Salary_Breakdown WHERE payroll_id IN (SELECT payroll_id FROM Payroll WHERE EmpID = ?)"
                 )) {
                     deleteSalaryBreakdownPs.setInt(1, empID);
@@ -149,6 +161,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deletePayrollPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Payroll WHERE EmpID = ?"
                 )) {
                     deletePayrollPs.setInt(1, empID);
@@ -156,6 +169,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteEmployeeProjectLinksPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Employee_Projects WHERE EmpID = ? OR project_id IN (SELECT project_id FROM Projects WHERE TeamLead = ?)"
                 )) {
                     deleteEmployeeProjectLinksPs.setInt(1, empID);
@@ -164,6 +178,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteProjectsPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Projects WHERE TeamLead = ?"
                 )) {
                     deleteProjectsPs.setInt(1, empID);
@@ -171,6 +186,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteAttendancePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Attendance_Log WHERE EmpID = ?"
                 )) {
                     deleteAttendancePs.setInt(1, empID);
@@ -178,6 +194,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteSickLeavePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Sick_Leave WHERE leave_id IN (SELECT leave_id FROM Leave_Request WHERE EmpID = ?)"
                 )) {
                     deleteSickLeavePs.setInt(1, empID);
@@ -185,6 +202,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteCasualLeavePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Casual_Leave WHERE leave_id IN (SELECT leave_id FROM Leave_Request WHERE EmpID = ?)"
                 )) {
                     deleteCasualLeavePs.setInt(1, empID);
@@ -192,6 +210,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deletePaidLeavePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Paid_Leave WHERE leave_id IN (SELECT leave_id FROM Leave_Request WHERE EmpID = ?)"
                 )) {
                     deletePaidLeavePs.setInt(1, empID);
@@ -199,6 +218,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteLeavePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Leave_Request WHERE EmpID = ?"
                 )) {
                     deleteLeavePs.setInt(1, empID);
@@ -206,6 +226,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteRecruitmentPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Recruitment WHERE EmpID = ? OR recruiter_id = ?"
                 )) {
                     deleteRecruitmentPs.setInt(1, empID);
@@ -214,6 +235,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteInternPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Intern WHERE EmpID = ?"
                 )) {
                     deleteInternPs.setInt(1, empID);
@@ -221,6 +243,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteFullTimePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Full_Time WHERE EmpID = ?"
                 )) {
                     deleteFullTimePs.setInt(1, empID);
@@ -228,6 +251,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteBranchDeptPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Branch_Dept WHERE branch_id IN (SELECT branch_id FROM Branch WHERE mgr_id = ?)"
                 )) {
                     deleteBranchDeptPs.setInt(1, empID);
@@ -235,6 +259,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteBranchesPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Branch WHERE mgr_id = ?"
                 )) {
                     deleteBranchesPs.setInt(1, empID);
@@ -242,6 +267,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deletePhonesPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Employee_Phones WHERE EmpID = ?"
                 )) {
                     deletePhonesPs.setInt(1, empID);
@@ -249,6 +275,7 @@ public class DatabaseOperations {
                 }
 
                 try (PreparedStatement deleteUserCredsPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM user_credentials WHERE EmpID = ?"
                 )) {
                     deleteUserCredsPs.setInt(1, empID);
@@ -256,6 +283,7 @@ public class DatabaseOperations {
                 }
 
                 int rowsAffected;
+                // DML-Delete
                 try (PreparedStatement ps = con.prepareStatement("DELETE FROM Employee WHERE EmpID = ?")) {
                     ps.setInt(1, empID);
                     rowsAffected = ps.executeUpdate();
@@ -283,6 +311,7 @@ public class DatabaseOperations {
      */
     public static void selectAllUsers() 
             throws DatabaseException {
+        // DRL-Select
         String query = "SELECT id, username, role FROM users";
         
         try (Connection con = DBConnection.getConnection();
@@ -307,6 +336,7 @@ public class DatabaseOperations {
      */
     public static void selectEmployeesWithDepartment() 
             throws DatabaseException {
+        // DRL-Select
         String query = "SELECT e.EmpID, e.Emp_name, e.Email, d.d_name " +
                       "FROM Employee e " +
                       "INNER JOIN Department d ON e.department_id = d.department_id";
@@ -334,6 +364,7 @@ public class DatabaseOperations {
      */
     public static void selectUsersByRole(String role) 
             throws DatabaseException {
+        // DRL-Select
         String query = "SELECT id, username, role FROM users WHERE role = ?";
         
         try (Connection con = DBConnection.getConnection();
@@ -360,6 +391,7 @@ public class DatabaseOperations {
      */
     public static void selectEmployeeById(int empID) 
             throws DatabaseException {
+        // DRL-Select
         String query = "SELECT EmpID, Emp_name, Gender, Email FROM Employee WHERE EmpID = ?";
         
         try (Connection con = DBConnection.getConnection();
@@ -390,6 +422,7 @@ public class DatabaseOperations {
      */
     public static int getTotalUsers() 
             throws DatabaseException {
+        // DRL-Select
         String query = "SELECT COUNT(*) as total FROM users";
         
         try (Connection con = DBConnection.getConnection();
@@ -413,6 +446,7 @@ public class DatabaseOperations {
      */
     public static int getTotalEmployees() 
             throws DatabaseException {
+        // DRL-Select
         String query = "SELECT COUNT(*) as total FROM Employee";
         
         try (Connection con = DBConnection.getConnection();
@@ -437,6 +471,7 @@ public class DatabaseOperations {
      */
     public static void getEmployeeCountByDepartment() 
             throws DatabaseException {
+        // DRL-Select
         String query = "SELECT d.d_name, COUNT(e.EmpID) as emp_count " +
                       "FROM Employee e " +
                       "INNER JOIN Department d ON e.department_id = d.department_id " +
@@ -463,6 +498,7 @@ public class DatabaseOperations {
      */
     public static void getEmployeesOrderedByName() 
             throws DatabaseException {
+        // DRL-Select
         String query = "SELECT EmpID, Emp_name, Email FROM Employee ORDER BY Emp_name ASC";
         
         try (Connection con = DBConnection.getConnection();

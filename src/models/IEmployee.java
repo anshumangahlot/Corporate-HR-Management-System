@@ -6,6 +6,7 @@ package models;
  * Defines contract for employee-related operations
  */
 public interface IEmployee {
+    // RBR
     
     /**
      * Get employee information

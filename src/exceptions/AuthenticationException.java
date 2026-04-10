@@ -6,6 +6,7 @@ package exceptions;
  */
 public class AuthenticationException extends Exception {
     
+    // RBR
     public AuthenticationException(String message) {
         super(message);
     }

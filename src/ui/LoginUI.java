@@ -150,7 +150,7 @@ public class LoginUI {
 
         frame.add(mainPanel);
 
-        // Action with comprehensive error handling (CO3)
+        // RBR
         loginBtn.addActionListener(e -> {
 
             String username = userField.getText().trim();
@@ -178,6 +178,7 @@ public class LoginUI {
                 }
 
             } catch (ValidationException ve) {
+                // RBR
                 // Handle validation errors
                 JOptionPane.showMessageDialog(frame, 
                     "Validation Error: " + ve.getMessage(), 
@@ -185,6 +186,7 @@ public class LoginUI {
                     JOptionPane.ERROR_MESSAGE);
 
             } catch (AuthenticationException ae) {
+                // RBR
                 // Handle authentication errors
                 JOptionPane.showMessageDialog(frame, 
                     "Authentication Failed: " + ae.getMessage(), 
@@ -192,6 +194,7 @@ public class LoginUI {
                     JOptionPane.ERROR_MESSAGE);
 
             } catch (DatabaseException de) {
+                // RBR
                 // Handle database errors
                 JOptionPane.showMessageDialog(frame, 
                     "Database Error: " + de.getMessage(), 

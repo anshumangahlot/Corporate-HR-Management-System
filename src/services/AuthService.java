@@ -1,4 +1,4 @@
-package services;
+﻿package services;
 
 import db.DBConnection;
 import models.User;
@@ -29,6 +29,7 @@ public class AuthService {
     public static User loginUser(String username, String password) 
             throws AuthenticationException, ValidationException, DatabaseException {
 
+        // RBR
         // Validation
         try {
             validateCredentials(username, password);
@@ -36,6 +37,7 @@ public class AuthService {
             throw e;
         }
 
+        // DRL-Select
         String query = "SELECT id, username, role FROM users WHERE username=? AND password=?";
 
         try (Connection con = DBConnection.getConnection();
@@ -59,10 +61,13 @@ public class AuthService {
             }
 
         } catch (AuthenticationException e) {
+            // RBR
             throw e;
         } catch (java.sql.SQLException e) {
+            // RBR
             throw new DatabaseException("Database error during login: " + e.getMessage(), e);
         } catch (Exception e) {
+            // RBR
             throw new DatabaseException("Unexpected error during login: " + e.getMessage(), e);
         }
     }

@@ -1,4 +1,4 @@
-package ui;
+﻿package ui;
 
 import db.DBConnection;
 import java.awt.*;
@@ -119,6 +119,7 @@ public class EmployeeDashboard extends Dashboard {
         int mappedId = currentUser.getId();
 
         try (Connection con = DBConnection.getConnection();
+             // DRL-Select
              PreparedStatement ps = con.prepareStatement("SELECT 1 FROM Employee WHERE EmpID = ?")) {
             ps.setInt(1, mappedId);
             ResultSet rs = ps.executeQuery();
@@ -142,6 +143,7 @@ public class EmployeeDashboard extends Dashboard {
     }
 
     private int getNextAttendanceId(Connection con) throws SQLException {
+        // DRL-Select
         String query = "SELECT COALESCE(MAX(att_id), 0) + 1 AS next_id FROM attendance_log";
         PreparedStatement ps = con.prepareStatement(query);
         ResultSet rs = ps.executeQuery();
@@ -161,6 +163,7 @@ public class EmployeeDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement ps = con.prepareStatement(
+                    // DRL-Select
                     "SELECT EmpID, Emp_name, DOB, Gender, Email, Street FROM Employee WHERE EmpID = ?"
             );
             ps.setInt(1, empId);
@@ -186,6 +189,7 @@ public class EmployeeDashboard extends Dashboard {
                 addProfileField(profilePanel, "Email:", rs.getString("Email"));
                 addProfileField(profilePanel, "Address:", rs.getString("Street"));
 
+                // DRL-Select
                 PreparedStatement phonePs = con.prepareStatement("SELECT Phone_Number FROM Employee_Phones WHERE EmpID = ? ORDER BY Phone_Number");
                 phonePs.setInt(1, empId);
                 ResultSet phoneRs = phonePs.executeQuery();
@@ -252,6 +256,7 @@ public class EmployeeDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
 
+            // DRL-Select
             String query = "SELECT d.d_name, d.d_head, j.designation, j.work_hours " +
                     "FROM Employee e " +
                     "LEFT JOIN Department d ON e.department_id = d.department_id " +
@@ -353,6 +358,7 @@ public class EmployeeDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement ps = con.prepareStatement(
+                // DRL-Select
                 "SELECT work_date, in_time, out_time, shift " +
                     "FROM attendance_log WHERE EmpID = ? ORDER BY work_date DESC, in_time DESC"
             );
@@ -370,6 +376,7 @@ public class EmployeeDashboard extends Dashboard {
             }
 
             PreparedStatement todayPs = con.prepareStatement(
+                    // DRL-Select
                     "SELECT in_time, out_time FROM attendance_log WHERE EmpID = ? AND work_date = CURDATE() ORDER BY att_id DESC LIMIT 1"
             );
             todayPs.setInt(1, empId);
@@ -418,6 +425,7 @@ public class EmployeeDashboard extends Dashboard {
         try (Connection con = DBConnection.getConnection()) {
 
             PreparedStatement checkPs = con.prepareStatement(
+                    // DRL-Select
                     "SELECT att_id, in_time, out_time FROM attendance_log WHERE EmpID = ? AND work_date = CURDATE() ORDER BY att_id DESC LIMIT 1"
             );
             checkPs.setInt(1, empId);
@@ -427,6 +435,7 @@ public class EmployeeDashboard extends Dashboard {
                 int nextAttId = getNextAttendanceId(con);
 
                 PreparedStatement inPs = con.prepareStatement(
+                        // DML-Insert
                         "INSERT INTO attendance_log (att_id, work_date, in_time, out_time, shift, remark, EmpID) " +
                         "VALUES (?, CURDATE(), CURTIME(), NULL, ?, ?, ?)"
                 );
@@ -450,6 +459,7 @@ public class EmployeeDashboard extends Dashboard {
 
             if (outTime == null) {
                 PreparedStatement outPs = con.prepareStatement(
+                        // DML-Update
                         "UPDATE attendance_log SET out_time = CURTIME() WHERE att_id = ?"
                 );
                 outPs.setInt(1, attId);
@@ -503,6 +513,7 @@ public class EmployeeDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             // Get next leave request ID
+            // DRL-Select
             String maxIdQuery = "SELECT COALESCE(MAX(leave_id), 0) + 1 AS next_id FROM Leave_Request";
             PreparedStatement getIdPs = con.prepareStatement(maxIdQuery);
             ResultSet idRs = getIdPs.executeQuery();
@@ -512,6 +523,7 @@ public class EmployeeDashboard extends Dashboard {
             }
 
             PreparedStatement ps = con.prepareStatement(
+                    // DML-Insert
                     "INSERT INTO Leave_Request (leave_id, start_date, end_date, status, EmpID) VALUES (?, ?, ?, 'Pending', ?)"
             );
             ps.setInt(1, nextId);
@@ -556,6 +568,7 @@ public class EmployeeDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement ps = con.prepareStatement(
+                    // DRL-Select
                     "SELECT start_date, end_date, status FROM Leave_Request WHERE EmpID = ? ORDER BY start_date DESC"
             );
             ps.setInt(1, empId);
@@ -612,6 +625,7 @@ public class EmployeeDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement ps = con.prepareStatement(
+                    // DRL-Select
                     "SELECT payroll_id, paydate, total_amount, transaction_id " +
                     "FROM Payroll WHERE EmpID = ? ORDER BY paydate DESC"
             );
@@ -623,7 +637,7 @@ public class EmployeeDashboard extends Dashboard {
                 model.addRow(new Object[]{
                         rs.getInt("payroll_id"),
                         rs.getDate("paydate"),
-                        String.format("₹ %.2f", rs.getDouble("total_amount")),
+                    String.format("Rs. %.2f", rs.getDouble("total_amount")),
                         rs.getString("transaction_id")
                 });
                 totalAmount += rs.getDouble("total_amount");
@@ -640,7 +654,7 @@ public class EmployeeDashboard extends Dashboard {
         JPanel summaryPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         summaryPanel.setBackground(new Color(236, 240, 241));
         summaryPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        JLabel summaryLabel = new JLabel("Total Payroll Amount: " + String.format("₹ %.2f", totalAmount));
+        JLabel summaryLabel = new JLabel("Total Payroll Amount: " + String.format("Rs. %.2f", totalAmount));
         summaryLabel.setFont(new Font("Arial", Font.BOLD, 13));
         summaryLabel.setForeground(new Color(44, 62, 80));
         summaryPanel.add(summaryLabel);
@@ -678,6 +692,7 @@ public class EmployeeDashboard extends Dashboard {
         int empId = getEmployeeId();
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String query = "SELECT p.* FROM projects p " +
                     "JOIN employee_projects ep ON p.project_id = ep.project_id " +
                     "WHERE ep.EmpId = ? ORDER BY p.StartDate DESC";
@@ -756,6 +771,7 @@ public class EmployeeDashboard extends Dashboard {
         
         try (Connection con = DBConnection.getConnection()) {
             // Fetch team lead information
+            // DRL-Select
             String leadQuery = "SELECT e.Emp_name FROM Projects p " +
                     "LEFT JOIN Employee e ON p.TeamLead = e.EmpID " +
                     "WHERE p.PName = ?";
@@ -768,6 +784,7 @@ public class EmployeeDashboard extends Dashboard {
             }
             
             // Fetch team members
+            // DRL-Select
             String query = "SELECT ep.EmpID, e.Emp_name, ep.role_in_project, ep.hours_per_week " +
                     "FROM Employee_Projects ep " +
                     "LEFT JOIN Employee e ON ep.EmpID = e.EmpID " +
@@ -884,6 +901,7 @@ public class EmployeeDashboard extends Dashboard {
             int empId = getEmployeeId();
             
             // Get employee's department
+            // DRL-Select
             String deptQuery = "SELECT department_id FROM Employee WHERE EmpID = ?";
             PreparedStatement deptPs = con.prepareStatement(deptQuery);
             deptPs.setInt(1, empId);
@@ -893,6 +911,7 @@ public class EmployeeDashboard extends Dashboard {
                 int deptId = deptRs.getInt("department_id");
                 
                 // Get meetings for employee's department
+                // DRL-Select
                 String meetingQuery = "SELECT m_date, m_time, topic FROM Meeting WHERE dept_id = ? ORDER BY m_date DESC, m_time DESC";
                 PreparedStatement meetingPs = con.prepareStatement(meetingQuery);
                 meetingPs.setInt(1, deptId);
@@ -932,6 +951,7 @@ public class EmployeeDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement ps = con.prepareStatement(
+                    // DML-Update
                     "UPDATE users SET password = ? WHERE username = ?"
             );
             ps.setString(1, newPass);

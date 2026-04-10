@@ -9,6 +9,7 @@ import javax.swing.*;
  * Provides common functionality for all dashboard types
  */
 public abstract class Dashboard {
+    // RBR
     public static final String APPLICATION_NAME = "HR Management System";
 
     protected JFrame frame;
@@ -32,6 +33,7 @@ public abstract class Dashboard {
      * Abstract method to initialize the dashboard
      * Must be implemented by subclasses
      */
+    // RBR
     public abstract void initializeDashboard();
 
     /**

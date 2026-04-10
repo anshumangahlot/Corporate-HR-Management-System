@@ -6,6 +6,7 @@ package exceptions;
  */
 public class DatabaseException extends Exception {
     
+    // RBR
     public DatabaseException(String message) {
         super(message);
     }

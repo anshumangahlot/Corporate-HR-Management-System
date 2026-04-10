@@ -1,4 +1,4 @@
-
+﻿
 import java.sql.*;
 
 import java.sql.Connection;
@@ -11,12 +11,14 @@ public class Main {
 
         try {
             // INSERT
+            // DML-Insert
             String insert = "INSERT INTO Employee VALUES (1, 'Anshuman', 'ansh@gmail.com')";
             Statement st = con.createStatement();
             st.executeUpdate(insert);
             System.out.println("Inserted!");
 
             // SELECT
+            // DRL-Select
             String select = "SELECT * FROM Employee";
             ResultSet rs = st.executeQuery(select);
 

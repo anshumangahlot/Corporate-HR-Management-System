@@ -1,4 +1,4 @@
-package ui;
+﻿package ui;
 
 import db.DBConnection;
 import exceptions.PhoneNumberValidationException;
@@ -30,6 +30,8 @@ public class AdminDashboard extends Dashboard {
 
     @Override
     public void initializeDashboard() {
+
+        // RBR
 
         frame = new JFrame(APPLICATION_NAME + " - Admin Dashboard");
         frame.setSize(1200, 750);
@@ -129,10 +131,15 @@ public class AdminDashboard extends Dashboard {
         contentPanel.setBackground(new Color(236, 240, 241));
         contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
+        // RBR
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             contentPanel.add(createCard("Total Employees", String.valueOf(getCount(con, "SELECT COUNT(*) FROM Employee"))));
+            // DRL-Select
             contentPanel.add(createCard("Pending Leave Requests", String.valueOf(getCount(con, "SELECT COUNT(*) FROM Leave_Request WHERE status = 'Pending'"))));
+            // DRL-Select
             contentPanel.add(createCard("Active Projects", String.valueOf(getCount(con, "SELECT COUNT(*) FROM Projects WHERE Status <> 'Completed'"))));
+            // DRL-Select
             contentPanel.add(createCard("Upcoming Meetings", String.valueOf(getCount(con, "SELECT COUNT(*) FROM Meeting WHERE m_date >= CURDATE()"))));
         } catch (Exception e) {
             e.printStackTrace();
@@ -185,6 +192,7 @@ public class AdminDashboard extends Dashboard {
         styleTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String query = "SELECT e.EmpID, e.Emp_name, e.Email, " +
                     "COALESCE(GROUP_CONCAT(DISTINCT ep.Phone_Number SEPARATOR ', '), 'Not available') AS phones, " +
                     "d.d_name, j.designation " +
@@ -247,6 +255,7 @@ public class AdminDashboard extends Dashboard {
         styleTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String query = "SELECT d.department_id, d.d_name, d.d_head, COUNT(e.EmpID) AS employees " +
                     "FROM Department d " +
                     "LEFT JOIN Employee e ON d.department_id = e.department_id " +
@@ -303,6 +312,7 @@ public class AdminDashboard extends Dashboard {
         styleTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String query = "SELECT jr.role_id, jr.designation, jr.work_hours, jr.base_salary, jr.max_bonus, " +
                     "jr.min_exp, jr.job_type, jr.total_leaves, d.d_name " +
                     "FROM Job_Role jr " +
@@ -370,6 +380,7 @@ public class AdminDashboard extends Dashboard {
         styleTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String query = "SELECT lr.leave_id, e.Emp_name, lr.start_date, lr.end_date, lr.status " +
                     "FROM Leave_Request lr " +
                     "LEFT JOIN Employee e ON lr.EmpID = e.EmpID";
@@ -433,6 +444,7 @@ public class AdminDashboard extends Dashboard {
     private void updateLeaveStatus(int leaveId, String status) {
         try (Connection con = DBConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(
+                     // DML-Update
                      "UPDATE Leave_Request SET status = ? WHERE leave_id = ?")) {
             ps.setString(1, status);
             ps.setInt(2, leaveId);
@@ -455,6 +467,7 @@ public class AdminDashboard extends Dashboard {
         styleTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String query = "SELECT a.att_id, a.work_date, a.in_time, a.out_time, a.shift, a.remark, e.Emp_name " +
                     "FROM Attendance_Log a " +
                     "LEFT JOIN Employee e ON a.EmpID = e.EmpID " +
@@ -493,6 +506,7 @@ public class AdminDashboard extends Dashboard {
         styleTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String query = "SELECT p.payroll_id, p.paydate, p.total_amount, p.transaction_id, e.Emp_name " +
                     "FROM Payroll p " +
                     "LEFT JOIN Employee e ON p.EmpID = e.EmpID";
@@ -538,6 +552,7 @@ public class AdminDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             // Get next payroll ID
+            // DRL-Select
             String maxIdQuery = "SELECT COALESCE(MAX(payroll_id), 0) + 1 AS next_id FROM Payroll";
             PreparedStatement getIdPs = con.prepareStatement(maxIdQuery);
             ResultSet idRs = getIdPs.executeQuery();
@@ -551,6 +566,7 @@ public class AdminDashboard extends Dashboard {
                 return;
             }
 
+            // DRL-Select
             String empQuery = "SELECT e.Emp_name, COALESCE(j.base_salary, 0) AS base_salary " +
                     "FROM Employee e " +
                     "LEFT JOIN Job_Role j ON e.role_id = j.role_id " +
@@ -558,6 +574,7 @@ public class AdminDashboard extends Dashboard {
 
             try (PreparedStatement empPs = con.prepareStatement(empQuery);
                  PreparedStatement insertPs = con.prepareStatement(
+                         // DML-Insert
                          "INSERT INTO Payroll (payroll_id, paydate, total_amount, transaction_id, EmpID) VALUES (?, ?, ?, ?, ?)"
                  )) {
 
@@ -597,6 +614,7 @@ public class AdminDashboard extends Dashboard {
 
     private EmployeeSelection chooseEmployeeForPayroll(Connection con) throws Exception {
         DefaultComboBoxModel<EmployeeSelection> model = new DefaultComboBoxModel<>();
+        // DRL-Select
         String query = "SELECT e.EmpID, e.Emp_name FROM Employee e ORDER BY e.EmpID";
 
         try (PreparedStatement ps = con.prepareStatement(query);
@@ -683,6 +701,7 @@ public class AdminDashboard extends Dashboard {
         styleTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String query = "SELECT p.project_id, p.PName, p.StartDate, p.EndDate, p.Status, d.d_name, e.Emp_name " +
                     "FROM Projects p " +
                     "LEFT JOIN Employee e ON p.TeamLead = e.EmpID " +
@@ -747,6 +766,7 @@ public class AdminDashboard extends Dashboard {
 
         // Populate department dropdown
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String deptQuery = "SELECT department_id, d_name FROM Department ORDER BY d_name";
             PreparedStatement deptPs = con.prepareStatement(deptQuery);
             ResultSet deptRs = deptPs.executeQuery();
@@ -755,6 +775,7 @@ public class AdminDashboard extends Dashboard {
             }
 
             // Populate team lead dropdown
+            // DRL-Select
             String leadQuery = "SELECT EmpID, Emp_name FROM Employee ORDER BY Emp_name";
             PreparedStatement leadPs = con.prepareStatement(leadQuery);
             ResultSet leadRs = leadPs.executeQuery();
@@ -815,10 +836,12 @@ public class AdminDashboard extends Dashboard {
             return;
         }
 
+        // RBR
         try (Connection con = DBConnection.getConnection()) {
             con.setAutoCommit(false);
 
             try {
+                // DRL-Select
                 String maxIdQuery = "SELECT COALESCE(MAX(project_id), 0) + 1 AS next_id FROM Projects";
                 int nextId;
                 try (PreparedStatement getIdPs = con.prepareStatement(maxIdQuery);
@@ -837,6 +860,7 @@ public class AdminDashboard extends Dashboard {
                 String leadSelection = (String) leadBox.getSelectedItem();
                 int teamLeadId = Integer.parseInt(leadSelection.split(" - ")[0]);
 
+                // DML-Insert
                 String insertQuery = "INSERT INTO Projects (project_id, PName, StartDate, EndDate, Status, TeamLead, dept_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
                 try (PreparedStatement ps = con.prepareStatement(insertQuery)) {
                     ps.setInt(1, nextId);
@@ -877,6 +901,7 @@ public class AdminDashboard extends Dashboard {
         styleTable(table);
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String query = "SELECT m.meeting_id, m.m_date, m.m_time, m.topic, m.dept_id, d.d_name " +
                     "FROM Meeting m " +
                     "LEFT JOIN Department d ON m.dept_id = d.department_id " +
@@ -934,6 +959,7 @@ public class AdminDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection();
              PreparedStatement fetchPs = con.prepareStatement(
+                     // DRL-Select
                      "SELECT PName, StartDate, EndDate, Status, TeamLead, dept_id FROM Projects WHERE project_id = ?")) {
             fetchPs.setInt(1, projectId);
             ResultSet rs = fetchPs.executeQuery();
@@ -960,6 +986,7 @@ public class AdminDashboard extends Dashboard {
             JComboBox<String> leadBox = new JComboBox<>();
 
             // Populate department dropdown
+            // DRL-Select
             String deptQuery = "SELECT department_id, d_name FROM Department ORDER BY d_name";
             PreparedStatement deptPs = con.prepareStatement(deptQuery);
             ResultSet deptRs = deptPs.executeQuery();
@@ -973,6 +1000,7 @@ public class AdminDashboard extends Dashboard {
             }
 
             // Populate team lead dropdown
+            // DRL-Select
             String leadQuery = "SELECT EmpID, Emp_name FROM Employee ORDER BY Emp_name";
             PreparedStatement leadPs = con.prepareStatement(leadQuery);
             ResultSet leadRs = leadPs.executeQuery();
@@ -1046,6 +1074,7 @@ public class AdminDashboard extends Dashboard {
             con.setAutoCommit(false);
             try {
                 try (PreparedStatement updatePs = con.prepareStatement(
+                        // DML-Update
                         "UPDATE Projects SET PName = ?, StartDate = ?, EndDate = ?, Status = ?, TeamLead = ?, dept_id = ? WHERE project_id = ?")) {
                     updatePs.setString(1, nameField.getText().trim());
                     updatePs.setString(2, startField.getText().trim());
@@ -1094,11 +1123,13 @@ public class AdminDashboard extends Dashboard {
         }
 
         try (Connection con = DBConnection.getConnection()) {
+            // DML-Delete
             try (PreparedStatement deleteAssignments = con.prepareStatement("DELETE FROM Employee_Projects WHERE project_id = ?")) {
                 deleteAssignments.setInt(1, projectId);
                 deleteAssignments.executeUpdate();
             }
 
+            // DML-Delete
             try (PreparedStatement deleteProject = con.prepareStatement("DELETE FROM Projects WHERE project_id = ?")) {
                 deleteProject.setInt(1, projectId);
                 int rows = deleteProject.executeUpdate();
@@ -1148,6 +1179,7 @@ public class AdminDashboard extends Dashboard {
         styleTable(teamTable);
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String query = "SELECT ep.EmpID, e.Emp_name, ep.role_in_project, ep.hours_per_week, ep.assigned_date " +
                     "FROM Employee_Projects ep " +
                     "LEFT JOIN Employee e ON ep.EmpID = e.EmpID " +
@@ -1192,6 +1224,7 @@ public class AdminDashboard extends Dashboard {
             }
             int empId = (int) teamModel.getValueAt(selectedRow, 0);
             try (Connection con = DBConnection.getConnection();
+                 // DRL-Select
                  PreparedStatement leadPs = con.prepareStatement("SELECT TeamLead FROM Projects WHERE project_id = ?")) {
                 leadPs.setInt(1, projectId);
                 try (ResultSet leadRs = leadPs.executeQuery()) {
@@ -1223,6 +1256,7 @@ public class AdminDashboard extends Dashboard {
     private void addEmployeeToProject(int projectId, JDialog parentDialog, DefaultTableModel teamModel) {
         try (Connection con = DBConnection.getConnection()) {
             // Get list of employees not yet in the project
+            // DRL-Select
             String query = "SELECT e.EmpID, e.Emp_name FROM Employee e " +
                     "WHERE e.EmpID NOT IN (SELECT EmpID FROM Employee_Projects WHERE project_id = ?) " +
                     "ORDER BY e.EmpID";
@@ -1266,6 +1300,7 @@ public class AdminDashboard extends Dashboard {
             }
 
             try (PreparedStatement insertPs = con.prepareStatement(
+                    // DML-Insert
                     "INSERT INTO Employee_Projects (EmpID, project_id, assigned_date, role_in_project, hours_per_week) VALUES (?, ?, CURDATE(), ?, ?)")) {
                 insertPs.setInt(1, selected.empId);
                 insertPs.setInt(2, projectId);
@@ -1275,6 +1310,7 @@ public class AdminDashboard extends Dashboard {
 
                 // Refresh the team table
                 teamModel.setRowCount(0);
+                // DRL-Select
                 String refreshQuery = "SELECT ep.EmpID, e.Emp_name, ep.role_in_project, ep.hours_per_week, ep.assigned_date " +
                         "FROM Employee_Projects ep " +
                         "LEFT JOIN Employee e ON ep.EmpID = e.EmpID " +
@@ -1313,6 +1349,7 @@ public class AdminDashboard extends Dashboard {
         }
 
         try (Connection con = DBConnection.getConnection();
+             // DML-Delete
              PreparedStatement deletePs = con.prepareStatement("DELETE FROM Employee_Projects WHERE EmpID = ? AND project_id = ?")) {
             deletePs.setInt(1, empId);
             deletePs.setInt(2, projectId);
@@ -1320,6 +1357,7 @@ public class AdminDashboard extends Dashboard {
 
             // Refresh the team table
             teamModel.setRowCount(0);
+            // DRL-Select
             String query = "SELECT ep.EmpID, e.Emp_name, ep.role_in_project, ep.hours_per_week, ep.assigned_date " +
                     "FROM Employee_Projects ep " +
                     "LEFT JOIN Employee e ON ep.EmpID = e.EmpID " +
@@ -1356,6 +1394,7 @@ public class AdminDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection();
              PreparedStatement fetchPs = con.prepareStatement(
+                     // DRL-Select
                      "SELECT m_date, m_time, topic, dept_id FROM Meeting WHERE meeting_id = ?")) {
             fetchPs.setInt(1, meetingId);
             ResultSet rs = fetchPs.executeQuery();
@@ -1372,6 +1411,7 @@ public class AdminDashboard extends Dashboard {
             JComboBox<String> deptBox = new JComboBox<>();
 
             // Populate department dropdown
+            // DRL-Select
             String deptQuery = "SELECT department_id, d_name FROM Department ORDER BY d_name";
             PreparedStatement deptPs = con.prepareStatement(deptQuery);
             ResultSet deptRs = deptPs.executeQuery();
@@ -1428,6 +1468,7 @@ public class AdminDashboard extends Dashboard {
             int deptId = Integer.parseInt(deptSelection.split(" - ")[0]);
 
             try (PreparedStatement updatePs = con.prepareStatement(
+                    // DML-Update
                     "UPDATE Meeting SET m_date = ?, m_time = ?, topic = ?, dept_id = ? WHERE meeting_id = ?")) {
                 updatePs.setString(1, dateField.getText().trim());
                 updatePs.setString(2, timeField.getText().trim());
@@ -1462,6 +1503,7 @@ public class AdminDashboard extends Dashboard {
         }
 
         try (Connection con = DBConnection.getConnection();
+             // DML-Delete
              PreparedStatement deleteMeeting = con.prepareStatement("DELETE FROM Meeting WHERE meeting_id = ?")) {
             deleteMeeting.setInt(1, meetingId);
             int rows = deleteMeeting.executeUpdate();
@@ -1487,6 +1529,7 @@ public class AdminDashboard extends Dashboard {
 
         // Populate department dropdown
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String deptQuery = "SELECT department_id, d_name FROM Department ORDER BY d_name";
             PreparedStatement deptPs = con.prepareStatement(deptQuery);
             ResultSet deptRs = deptPs.executeQuery();
@@ -1539,6 +1582,7 @@ public class AdminDashboard extends Dashboard {
         }
 
         try (Connection con = DBConnection.getConnection()) {
+            // DRL-Select
             String maxIdQuery = "SELECT COALESCE(MAX(meeting_id), 0) + 1 AS next_id FROM Meeting";
             PreparedStatement getIdPs = con.prepareStatement(maxIdQuery);
             ResultSet idRs = getIdPs.executeQuery();
@@ -1551,6 +1595,7 @@ public class AdminDashboard extends Dashboard {
             String deptSelection = (String) deptBox.getSelectedItem();
             int deptId = Integer.parseInt(deptSelection.split(" - ")[0]);
 
+            // DML-Insert
             String insertQuery = "INSERT INTO Meeting (meeting_id, m_date, m_time, topic, dept_id) VALUES (?, ?, ?, ?, ?)";
             PreparedStatement ps = con.prepareStatement(insertQuery);
             ps.setInt(1, nextId);
@@ -1570,6 +1615,7 @@ public class AdminDashboard extends Dashboard {
 
     @Override
     public void changePassword() {
+        // RBR
         String newPass = JOptionPane.showInputDialog(frame, "New Password");
 
         if (newPass == null || newPass.trim().isEmpty()) {
@@ -1578,6 +1624,7 @@ public class AdminDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(
+                     // DML-Update
                      "UPDATE users SET password = ? WHERE username = ?")) {
             ps.setString(1, newPass);
             ps.setString(2, currentUser.getUsername());
@@ -1670,6 +1717,7 @@ public class AdminDashboard extends Dashboard {
 
         String email = emailField.getText().trim();
         try {
+            // RBR
             validateAlphaNumericText("Employee Name", nameField.getText().trim());
             validateEmailAddress(email);
             validateBirthDate(dobField.getText().trim());
@@ -1678,6 +1726,7 @@ public class AdminDashboard extends Dashboard {
             return;
         }
 
+        // RBR
         try (Connection con = DBConnection.getConnection()) {
             con.setAutoCommit(false);
             int empId = Integer.parseInt(idField.getText().trim());
@@ -1695,6 +1744,7 @@ public class AdminDashboard extends Dashboard {
             }
 
             PreparedStatement checkUserPs = con.prepareStatement(
+                    // DRL-Select
                     "SELECT id FROM users WHERE username = ?"
             );
             checkUserPs.setString(1, username);
@@ -1704,6 +1754,7 @@ public class AdminDashboard extends Dashboard {
                 return;
             }
 
+            // DML-Insert
             String insertQuery = "INSERT INTO Employee (EmpID, Emp_name, Gender, DOB, Email, Street, department_id, role_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement ps = con.prepareStatement(insertQuery);
             ps.setInt(1, empId);
@@ -1736,6 +1787,7 @@ public class AdminDashboard extends Dashboard {
             
             if (!phoneNumber1.isEmpty()) {
                 PreparedStatement phonePs = con.prepareStatement(
+                    // DML-Insert
                     "INSERT INTO Employee_Phones (EmpID, Phone_Number) VALUES (?, ?)"
                 );
                 phonePs.setInt(1, empId);
@@ -1745,6 +1797,7 @@ public class AdminDashboard extends Dashboard {
             
             if (!phoneNumber2.isEmpty()) {
                 PreparedStatement phonePs2 = con.prepareStatement(
+                    // DML-Insert
                     "INSERT INTO Employee_Phones (EmpID, Phone_Number) VALUES (?, ?)"
                 );
                 phonePs2.setInt(1, empId);
@@ -1753,6 +1806,7 @@ public class AdminDashboard extends Dashboard {
             }
 
             PreparedStatement userPs = con.prepareStatement(
+                // DML-Insert
                 "INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)"
             );
             userPs.setInt(1, empId);
@@ -1775,6 +1829,7 @@ public class AdminDashboard extends Dashboard {
     }
 
     private void loadDepartmentOptions(Connection con, JComboBox<IdNameOption> departmentBox) throws Exception {
+        // DRL-Select
         String query = "SELECT department_id, d_name FROM Department ORDER BY department_id";
         try (PreparedStatement ps = con.prepareStatement(query);
              ResultSet rs = ps.executeQuery()) {
@@ -1785,6 +1840,7 @@ public class AdminDashboard extends Dashboard {
     }
 
     private void loadRoleOptions(Connection con, JComboBox<IdNameOption> roleBox) throws Exception {
+        // DRL-Select
         String query = "SELECT role_id, designation FROM Job_Role ORDER BY role_id";
         try (PreparedStatement ps = con.prepareStatement(query);
              ResultSet rs = ps.executeQuery()) {
@@ -1798,6 +1854,7 @@ public class AdminDashboard extends Dashboard {
         headBox.removeAllItems();
         headBox.addItem("");
 
+        // DRL-Select
         String query = "SELECT Emp_name FROM Employee ORDER BY Emp_name";
         try (PreparedStatement ps = con.prepareStatement(query);
              ResultSet rs = ps.executeQuery()) {
@@ -1844,6 +1901,7 @@ public class AdminDashboard extends Dashboard {
 
             try {
                 try (PreparedStatement deleteSalaryBreakdownPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Salary_Breakdown WHERE payroll_id IN (SELECT payroll_id FROM Payroll WHERE EmpID = ?)"
                 )) {
                     deleteSalaryBreakdownPs.setInt(1, empId);
@@ -1851,6 +1909,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deletePayrollPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Payroll WHERE EmpID = ?"
                 )) {
                     deletePayrollPs.setInt(1, empId);
@@ -1858,6 +1917,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteEmployeeProjectLinksPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Employee_Projects WHERE EmpID = ? OR project_id IN (SELECT project_id FROM Projects WHERE TeamLead = ?)"
                 )) {
                     deleteEmployeeProjectLinksPs.setInt(1, empId);
@@ -1866,6 +1926,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteProjectsPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Projects WHERE TeamLead = ?"
                 )) {
                     deleteProjectsPs.setInt(1, empId);
@@ -1873,6 +1934,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteAttendancePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Attendance_Log WHERE EmpID = ?"
                 )) {
                     deleteAttendancePs.setInt(1, empId);
@@ -1880,6 +1942,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteSickLeavePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Sick_Leave WHERE leave_id IN (SELECT leave_id FROM Leave_Request WHERE EmpID = ?)"
                 )) {
                     deleteSickLeavePs.setInt(1, empId);
@@ -1887,6 +1950,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteCasualLeavePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Casual_Leave WHERE leave_id IN (SELECT leave_id FROM Leave_Request WHERE EmpID = ?)"
                 )) {
                     deleteCasualLeavePs.setInt(1, empId);
@@ -1894,6 +1958,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deletePaidLeavePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Paid_Leave WHERE leave_id IN (SELECT leave_id FROM Leave_Request WHERE EmpID = ?)"
                 )) {
                     deletePaidLeavePs.setInt(1, empId);
@@ -1901,6 +1966,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteLeavePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Leave_Request WHERE EmpID = ?"
                 )) {
                     deleteLeavePs.setInt(1, empId);
@@ -1908,6 +1974,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteRecruitmentPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Recruitment WHERE EmpID = ? OR recruiter_id = ?"
                 )) {
                     deleteRecruitmentPs.setInt(1, empId);
@@ -1916,6 +1983,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteInternPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Intern WHERE EmpID = ?"
                 )) {
                     deleteInternPs.setInt(1, empId);
@@ -1923,6 +1991,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteFullTimePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Full_Time WHERE EmpID = ?"
                 )) {
                     deleteFullTimePs.setInt(1, empId);
@@ -1930,6 +1999,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteBranchDeptPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Branch_Dept WHERE branch_id IN (SELECT branch_id FROM Branch WHERE mgr_id = ?)"
                 )) {
                     deleteBranchDeptPs.setInt(1, empId);
@@ -1937,6 +2007,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteBranchesPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Branch WHERE mgr_id = ?"
                 )) {
                     deleteBranchesPs.setInt(1, empId);
@@ -1944,6 +2015,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deletePhonesPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Employee_Phones WHERE EmpID = ?"
                 )) {
                     deletePhonesPs.setInt(1, empId);
@@ -1951,6 +2023,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 try (PreparedStatement deleteUserCredsPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM user_credentials WHERE EmpID = ?"
                 )) {
                     deleteUserCredsPs.setInt(1, empId);
@@ -1959,6 +2032,7 @@ public class AdminDashboard extends Dashboard {
 
                 int rows;
                 try (PreparedStatement deleteEmpPs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Employee WHERE EmpID = ?"
                 )) {
                     deleteEmpPs.setInt(1, empId);
@@ -1967,6 +2041,7 @@ public class AdminDashboard extends Dashboard {
 
                 if (rows > 0) {
                     try (PreparedStatement deleteUserPs = con.prepareStatement(
+                            // DML-Delete
                             "DELETE FROM users WHERE id = ? AND role = ?"
                     )) {
                         deleteUserPs.setInt(1, empId);
@@ -2006,6 +2081,7 @@ public class AdminDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement fetchPs = con.prepareStatement(
+                    // DRL-Select
                     "SELECT Emp_name, Gender, DOB, Email, Street, department_id, role_id FROM Employee WHERE EmpID = ?"
             );
             fetchPs.setInt(1, empId);
@@ -2063,6 +2139,7 @@ public class AdminDashboard extends Dashboard {
             }
 
             PreparedStatement userFetchPs = con.prepareStatement(
+                    // DRL-Select
                     "SELECT username FROM users WHERE id = ? AND role = ?"
             );
             userFetchPs.setInt(1, empId);
@@ -2074,6 +2151,7 @@ public class AdminDashboard extends Dashboard {
 
             // Fetch existing phone numbers
             PreparedStatement phoneFetchPs = con.prepareStatement(
+                    // DRL-Select
                     "SELECT Phone_Number FROM Employee_Phones WHERE EmpID = ? ORDER BY Phone_Number"
             );
             phoneFetchPs.setInt(1, empId);
@@ -2162,6 +2240,7 @@ public class AdminDashboard extends Dashboard {
             }
 
             PreparedStatement checkUserPs = con.prepareStatement(
+                    // DRL-Select
                     "SELECT id FROM users WHERE username = ? AND id <> ?"
             );
             checkUserPs.setString(1, updatedUsername);
@@ -2177,6 +2256,7 @@ public class AdminDashboard extends Dashboard {
             try {
                 int rows;
                 PreparedStatement updatePs = con.prepareStatement(
+                        // DML-Update
                         "UPDATE Employee SET Emp_name = ?, Gender = ?, DOB = ?, Email = ?, Street = ?, department_id = ?, role_id = ? WHERE EmpID = ?"
                 );
                 updatePs.setString(1, nameField.getText().trim());
@@ -2190,6 +2270,7 @@ public class AdminDashboard extends Dashboard {
                 rows = updatePs.executeUpdate();
 
                 PreparedStatement deletePhonePs = con.prepareStatement(
+                        // DML-Delete
                         "DELETE FROM Employee_Phones WHERE EmpID = ?"
                 );
                 deletePhonePs.setInt(1, empId);
@@ -2197,6 +2278,7 @@ public class AdminDashboard extends Dashboard {
 
                 for (String phoneNumber : phoneNumbersToSave) {
                     try (PreparedStatement insertPhonePs = con.prepareStatement(
+                            // DML-Insert
                             "INSERT INTO Employee_Phones (EmpID, Phone_Number) VALUES (?, ?)"
                     )) {
                         insertPhonePs.setInt(1, empId);
@@ -2206,6 +2288,7 @@ public class AdminDashboard extends Dashboard {
                 }
 
                 PreparedStatement updateUsernamePs = con.prepareStatement(
+                        // DML-Update
                         "UPDATE users SET username = ? WHERE id = ? AND role = ?"
                 );
                 updateUsernamePs.setString(1, updatedUsername);
@@ -2215,6 +2298,7 @@ public class AdminDashboard extends Dashboard {
 
                 if (usernameRows == 0) {
                     try (PreparedStatement createUserPs = con.prepareStatement(
+                            // DML-Insert
                             "INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)"
                     )) {
                         createUserPs.setInt(1, empId);
@@ -2228,6 +2312,7 @@ public class AdminDashboard extends Dashboard {
                 String newPassword = new String(passwordField.getPassword()).trim();
                 if (!newPassword.isEmpty()) {
                     PreparedStatement updateUserPs = con.prepareStatement(
+                            // DML-Update
                             "UPDATE users SET password = ? WHERE id = ? AND role = ?"
                     );
                     updateUserPs.setString(1, newPassword);
@@ -2237,6 +2322,7 @@ public class AdminDashboard extends Dashboard {
 
                     if (userRows == 0) {
                         try (PreparedStatement insertUserPs = con.prepareStatement(
+                                // DML-Insert
                                 "INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)"
                         )) {
                             insertUserPs.setInt(1, empId);
@@ -2308,6 +2394,7 @@ public class AdminDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(
+                     // DML-Insert
                      "INSERT INTO Department (department_id, d_name, d_head) VALUES (?, ?, ?)")) {
             ps.setInt(1, Integer.parseInt(idField.getText().trim()));
             ps.setString(2, nameField.getText().trim());
@@ -2336,6 +2423,7 @@ public class AdminDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection();
              PreparedStatement fetchPs = con.prepareStatement(
+                     // DRL-Select
                      "SELECT d_name, d_head FROM Department WHERE department_id = ?")) {
             fetchPs.setInt(1, deptId);
             ResultSet rs = fetchPs.executeQuery();
@@ -2377,6 +2465,7 @@ public class AdminDashboard extends Dashboard {
             }
 
             try (PreparedStatement updatePs = con.prepareStatement(
+                    // DML-Update
                     "UPDATE Department SET d_name = ?, d_head = ? WHERE department_id = ?")) {
                 updatePs.setString(1, nameField.getText().trim());
                 String selectedHead = (String) headField.getSelectedItem();
@@ -2416,36 +2505,42 @@ public class AdminDashboard extends Dashboard {
             con.setAutoCommit(false);
 
             PreparedStatement clearEmployees = con.prepareStatement(
+                    // DML-Update
                     "UPDATE Employee SET department_id = NULL WHERE department_id = ?"
             );
             clearEmployees.setInt(1, deptId);
             clearEmployees.executeUpdate();
 
             PreparedStatement clearJobRoles = con.prepareStatement(
+                    // DML-Update
                     "UPDATE Job_Role SET dept_id = NULL WHERE dept_id = ?"
             );
             clearJobRoles.setInt(1, deptId);
             clearJobRoles.executeUpdate();
 
             PreparedStatement clearProjects = con.prepareStatement(
+                    // DML-Update
                     "UPDATE Projects SET dept_id = NULL WHERE dept_id = ?"
             );
             clearProjects.setInt(1, deptId);
             clearProjects.executeUpdate();
 
             PreparedStatement clearMeetings = con.prepareStatement(
+                    // DML-Update
                     "UPDATE Meeting SET dept_id = NULL WHERE dept_id = ?"
             );
             clearMeetings.setInt(1, deptId);
             clearMeetings.executeUpdate();
 
             PreparedStatement deleteBranchLinks = con.prepareStatement(
+                    // DML-Delete
                     "DELETE FROM Branch_Dept WHERE dept_id = ?"
             );
             deleteBranchLinks.setInt(1, deptId);
             deleteBranchLinks.executeUpdate();
 
             PreparedStatement deleteDepartment = con.prepareStatement(
+                    // DML-Delete
                     "DELETE FROM Department WHERE department_id = ?"
             );
             deleteDepartment.setInt(1, deptId);
@@ -2516,6 +2611,7 @@ public class AdminDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement ps = con.prepareStatement(
+                    // DML-Insert
                     "INSERT INTO Job_Role (role_id, designation, work_hours, base_salary, max_bonus, min_exp, job_type, total_leaves, dept_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             ps.setInt(1, Integer.parseInt(idField.getText().trim()));
@@ -2554,6 +2650,7 @@ public class AdminDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement fetchPs = con.prepareStatement(
+                    // DRL-Select
                     "SELECT designation, work_hours, base_salary, max_bonus, min_exp, job_type, total_leaves, dept_id FROM Job_Role WHERE role_id = ?"
             );
             fetchPs.setInt(1, roleId);
@@ -2604,6 +2701,7 @@ public class AdminDashboard extends Dashboard {
             }
 
             PreparedStatement updatePs = con.prepareStatement(
+                    // DML-Update
                     "UPDATE Job_Role SET designation = ?, work_hours = ?, base_salary = ?, max_bonus = ?, min_exp = ?, job_type = ?, total_leaves = ?, dept_id = ? WHERE role_id = ?"
             );
             updatePs.setString(1, designationField.getText().trim());
@@ -2658,24 +2756,28 @@ public class AdminDashboard extends Dashboard {
             con.setAutoCommit(false);
 
             PreparedStatement clearEmployees = con.prepareStatement(
+                    // DML-Update
                     "UPDATE Employee SET role_id = NULL WHERE role_id = ?"
             );
             clearEmployees.setInt(1, roleId);
             clearEmployees.executeUpdate();
 
             PreparedStatement clearRecruitment = con.prepareStatement(
+                    // DML-Update
                     "UPDATE Recruitment SET role_id = NULL WHERE role_id = ?"
             );
             clearRecruitment.setInt(1, roleId);
             clearRecruitment.executeUpdate();
 
             PreparedStatement deleteRoleSkills = con.prepareStatement(
+                    // DML-Delete
                     "DELETE FROM Role_Skills WHERE role_id = ?"
             );
             deleteRoleSkills.setInt(1, roleId);
             deleteRoleSkills.executeUpdate();
 
             PreparedStatement deleteRole = con.prepareStatement(
+                    // DML-Delete
                     "DELETE FROM Job_Role WHERE role_id = ?"
             );
             deleteRole.setInt(1, roleId);
@@ -2760,6 +2862,7 @@ public class AdminDashboard extends Dashboard {
     }
 
     private void validateEmailAddress(String email) throws ValidationException {
+        // RBR
         if (email == null || email.trim().isEmpty()) {
             throw new ValidationException("Email is required");
         }
@@ -2793,12 +2896,14 @@ public class AdminDashboard extends Dashboard {
 
     private void ensureProjectTeamLeadMember(Connection con, int projectId, int teamLeadId) throws Exception {
         try (PreparedStatement checkPs = con.prepareStatement(
+                // DRL-Select
                 "SELECT 1 FROM Employee_Projects WHERE EmpID = ? AND project_id = ?")) {
             checkPs.setInt(1, teamLeadId);
             checkPs.setInt(2, projectId);
             try (ResultSet rs = checkPs.executeQuery()) {
                 if (rs.next()) {
                     try (PreparedStatement updatePs = con.prepareStatement(
+                            // DML-Update
                             "UPDATE Employee_Projects SET role_in_project = ? WHERE EmpID = ? AND project_id = ?")) {
                         updatePs.setString(1, "Team Lead");
                         updatePs.setInt(2, teamLeadId);
@@ -2807,6 +2912,7 @@ public class AdminDashboard extends Dashboard {
                     }
                 } else {
                     try (PreparedStatement insertPs = con.prepareStatement(
+                            // DML-Insert
                             "INSERT INTO Employee_Projects (EmpID, project_id, assigned_date, role_in_project, hours_per_week) VALUES (?, ?, CURDATE(), ?, ?)")) {
                         insertPs.setInt(1, teamLeadId);
                         insertPs.setInt(2, projectId);
@@ -2821,6 +2927,7 @@ public class AdminDashboard extends Dashboard {
 
     private void demotePreviousProjectLead(Connection con, int projectId, int previousTeamLeadId) throws Exception {
         try (PreparedStatement updatePs = con.prepareStatement(
+                // DML-Update
                 "UPDATE Employee_Projects SET role_in_project = ? WHERE EmpID = ? AND project_id = ?")) {
             updatePs.setString(1, "Developer");
             updatePs.setInt(2, previousTeamLeadId);
@@ -2845,6 +2952,7 @@ public class AdminDashboard extends Dashboard {
     }
 
     private void validateAlphaNumericText(String fieldName, String value) throws ValidationException {
+        // RBR
         if (value == null || value.trim().isEmpty()) {
             throw new ValidationException(fieldName + " is required");
         }

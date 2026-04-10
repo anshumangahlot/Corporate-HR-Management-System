@@ -6,6 +6,7 @@ package exceptions;
  */
 public class ValidationException extends Exception {
     
+    // RBR
     public ValidationException(String message) {
         super(message);
     }

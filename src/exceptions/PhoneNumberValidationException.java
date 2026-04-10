@@ -5,6 +5,7 @@ package exceptions;
  */
 public class PhoneNumberValidationException extends ValidationException {
 
+    // RBR
     public PhoneNumberValidationException(String message) {
         super(message);
     }
