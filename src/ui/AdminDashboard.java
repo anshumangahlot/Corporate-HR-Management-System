@@ -741,7 +741,8 @@ public class AdminDashboard extends Dashboard {
         JTextField nameField = new JTextField();
         JTextField startField = new JTextField();
         JTextField endField = new JTextField();
-        JTextField statusField = new JTextField("Active");
+        JComboBox<String> statusField = new JComboBox<>(new String[]{"Planned", "Active", "On Hold", "Completed", "Cancelled"});
+        statusField.setSelectedItem("Active");
         JComboBox<String> deptBox = new JComboBox<>();
         JComboBox<String> leadBox = new JComboBox<>();
 
@@ -842,7 +843,7 @@ public class AdminDashboard extends Dashboard {
                     ps.setString(2, nameField.getText().trim());
                     ps.setString(3, startField.getText().trim());
                     ps.setString(4, endField.getText().trim());
-                    ps.setString(5, statusField.getText().trim());
+                    ps.setString(5, (String) statusField.getSelectedItem());
                     ps.setInt(6, teamLeadId);
                     ps.setInt(7, deptId);
                     ps.executeUpdate();
@@ -946,7 +947,15 @@ public class AdminDashboard extends Dashboard {
             JTextField nameField = new JTextField(rs.getString("PName"));
             JTextField startField = new JTextField(rs.getDate("StartDate") == null ? "" : rs.getDate("StartDate").toString());
             JTextField endField = new JTextField(rs.getDate("EndDate") == null ? "" : rs.getDate("EndDate").toString());
-            JTextField statusField = new JTextField(rs.getString("Status"));
+            JComboBox<String> statusField = new JComboBox<>(new String[]{"Planned", "Active", "On Hold", "Completed", "Cancelled"});
+            String currentStatus = rs.getString("Status");
+            if (currentStatus != null && !currentStatus.trim().isEmpty()) {
+                statusField.setSelectedItem(currentStatus.trim());
+                if (!currentStatus.trim().equals(String.valueOf(statusField.getSelectedItem()))) {
+                    statusField.addItem(currentStatus.trim());
+                    statusField.setSelectedItem(currentStatus.trim());
+                }
+            }
             JComboBox<String> deptBox = new JComboBox<>();
             JComboBox<String> leadBox = new JComboBox<>();
 
@@ -1040,7 +1049,7 @@ public class AdminDashboard extends Dashboard {
                     updatePs.setString(1, nameField.getText().trim());
                     updatePs.setString(2, startField.getText().trim());
                     updatePs.setString(3, endField.getText().trim());
-                    updatePs.setString(4, statusField.getText().trim());
+                    updatePs.setString(4, (String) statusField.getSelectedItem());
                     updatePs.setInt(5, teamLeadId);
                     updatePs.setInt(6, deptId);
                     updatePs.setInt(7, projectId);
@@ -1769,6 +1778,19 @@ public class AdminDashboard extends Dashboard {
         }
     }
 
+    private void loadDepartmentHeadOptions(Connection con, JComboBox<String> headBox) throws Exception {
+        headBox.removeAllItems();
+        headBox.addItem("");
+
+        String query = "SELECT Emp_name FROM Employee ORDER BY Emp_name";
+        try (PreparedStatement ps = con.prepareStatement(query);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                headBox.addItem(rs.getString("Emp_name"));
+            }
+        }
+    }
+
     private static class IdNameOption {
         private final int id;
         private final String name;
@@ -2233,7 +2255,15 @@ public class AdminDashboard extends Dashboard {
         JPanel panel = new JPanel(new GridLayout(3, 2, 5, 5));
         JTextField idField = new JTextField();
         JTextField nameField = new JTextField();
-        JTextField headField = new JTextField();
+        JComboBox<String> headField = new JComboBox<>();
+
+        try (Connection con = DBConnection.getConnection()) {
+            loadDepartmentHeadOptions(con, headField);
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(frame, "Error loading employees for department head: " + e.getMessage());
+            return;
+        }
 
         panel.add(new JLabel("Department ID:"));
         panel.add(idField);
@@ -2257,7 +2287,8 @@ public class AdminDashboard extends Dashboard {
                      "INSERT INTO Department (department_id, d_name, d_head) VALUES (?, ?, ?)")) {
             ps.setInt(1, Integer.parseInt(idField.getText().trim()));
             ps.setString(2, nameField.getText().trim());
-            ps.setString(3, headField.getText().trim().isEmpty() ? null : headField.getText().trim());
+            String selectedHead = (String) headField.getSelectedItem();
+            ps.setString(3, selectedHead == null || selectedHead.trim().isEmpty() ? null : selectedHead.trim());
             ps.executeUpdate();
 
             JOptionPane.showMessageDialog(frame, "Department added successfully");
@@ -2292,7 +2323,17 @@ public class AdminDashboard extends Dashboard {
 
             JPanel panel = new JPanel(new GridLayout(2, 2, 5, 5));
             JTextField nameField = new JTextField(rs.getString("d_name"));
-            JTextField headField = new JTextField(rs.getString("d_head") == null ? "" : rs.getString("d_head"));
+            JComboBox<String> headField = new JComboBox<>();
+
+            loadDepartmentHeadOptions(con, headField);
+            String currentHead = rs.getString("d_head");
+            if (currentHead != null && !currentHead.trim().isEmpty()) {
+                headField.setSelectedItem(currentHead.trim());
+                if (!currentHead.trim().equals(String.valueOf(headField.getSelectedItem()))) {
+                    headField.addItem(currentHead.trim());
+                    headField.setSelectedItem(currentHead.trim());
+                }
+            }
 
             panel.add(new JLabel("Department Name:"));
             panel.add(nameField);
@@ -2307,7 +2348,8 @@ public class AdminDashboard extends Dashboard {
             try (PreparedStatement updatePs = con.prepareStatement(
                     "UPDATE Department SET d_name = ?, d_head = ? WHERE department_id = ?")) {
                 updatePs.setString(1, nameField.getText().trim());
-                updatePs.setString(2, headField.getText().trim().isEmpty() ? null : headField.getText().trim());
+                String selectedHead = (String) headField.getSelectedItem();
+                updatePs.setString(2, selectedHead == null || selectedHead.trim().isEmpty() ? null : selectedHead.trim());
                 updatePs.setInt(3, deptId);
                 updatePs.executeUpdate();
             }
