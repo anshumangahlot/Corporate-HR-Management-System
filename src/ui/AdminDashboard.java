@@ -2291,10 +2291,10 @@ public class AdminDashboard extends Dashboard {
             ps.setString(3, selectedHead == null || selectedHead.trim().isEmpty() ? null : selectedHead.trim());
             ps.executeUpdate();
 
-            JOptionPane.showMessageDialog(frame, "Department added successfully");
+            showInfoMessage("Department", "Department added successfully");
             showDepartments();
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(frame, "Department ID must be a number");
+            showInfoMessage("Department ID must be a number");
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(frame, "Error adding department: " + e.getMessage());
@@ -2697,6 +2697,15 @@ public class AdminDashboard extends Dashboard {
     private void refresh() {
         contentPanel.revalidate();
         contentPanel.repaint();
+    }
+
+    // Overloaded helper methods to demonstrate method overloading.
+    private void showInfoMessage(String message) {
+        JOptionPane.showMessageDialog(frame, message);
+    }
+
+    private void showInfoMessage(String title, String message) {
+        JOptionPane.showMessageDialog(frame, message, title, JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void validatePhoneNumber(String phoneNumber, String fieldLabel) throws PhoneNumberValidationException {
