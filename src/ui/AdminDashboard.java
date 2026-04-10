@@ -808,6 +808,7 @@ public class AdminDashboard extends Dashboard {
         }
 
         try {
+            validateAlphaNumericText("Project Name", nameField.getText().trim());
             validateDateRange(startField.getText().trim(), endField.getText().trim());
         } catch (ValidationException e) {
             JOptionPane.showMessageDialog(frame, e.getMessage());
@@ -1025,6 +1026,7 @@ public class AdminDashboard extends Dashboard {
             }
 
             try {
+                validateAlphaNumericText("Project Name", nameField.getText().trim());
                 validateDateRange(startField.getText().trim(), endField.getText().trim());
             } catch (ValidationException e) {
                 JOptionPane.showMessageDialog(frame, e.getMessage());
@@ -1414,6 +1416,13 @@ public class AdminDashboard extends Dashboard {
                 return;
             }
 
+            try {
+                validateAlphaNumericText("Meeting Topic", topicField.getText().trim());
+            } catch (ValidationException ex) {
+                JOptionPane.showMessageDialog(frame, ex.getMessage());
+                return;
+            }
+
             // Extract department ID from selected item
             String deptSelection = (String) deptBox.getSelectedItem();
             int deptId = Integer.parseInt(deptSelection.split(" - ")[0]);
@@ -1519,6 +1528,13 @@ public class AdminDashboard extends Dashboard {
         }
         if (deptBox.getSelectedItem() == null) {
             JOptionPane.showMessageDialog(frame, "Department is required");
+            return;
+        }
+
+        try {
+            validateAlphaNumericText("Meeting Topic", topicField.getText().trim());
+        } catch (ValidationException ex) {
+            JOptionPane.showMessageDialog(frame, ex.getMessage());
             return;
         }
 
@@ -1654,6 +1670,7 @@ public class AdminDashboard extends Dashboard {
 
         String email = emailField.getText().trim();
         try {
+            validateAlphaNumericText("Employee Name", nameField.getText().trim());
             validateEmailAddress(email);
             validateBirthDate(dobField.getText().trim());
         } catch (ValidationException e) {
@@ -2136,6 +2153,7 @@ public class AdminDashboard extends Dashboard {
 
             String email = emailField.getText().trim();
             try {
+                validateAlphaNumericText("Employee Name", nameField.getText().trim());
                 validateEmailAddress(email);
                 validateBirthDate(dobField.getText().trim());
             } catch (ValidationException e) {
@@ -2281,6 +2299,13 @@ public class AdminDashboard extends Dashboard {
             return;
         }
 
+        try {
+            validateAlphaNumericText("Department Name", nameField.getText().trim());
+        } catch (ValidationException e) {
+            JOptionPane.showMessageDialog(frame, e.getMessage());
+            return;
+        }
+
         try (Connection con = DBConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(
                      "INSERT INTO Department (department_id, d_name, d_head) VALUES (?, ?, ?)")) {
@@ -2341,6 +2366,13 @@ public class AdminDashboard extends Dashboard {
 
             int result = JOptionPane.showConfirmDialog(frame, panel, "Edit Department #" + deptId, JOptionPane.OK_CANCEL_OPTION);
             if (result != JOptionPane.OK_OPTION) {
+                return;
+            }
+
+            try {
+                validateAlphaNumericText("Department Name", nameField.getText().trim());
+            } catch (ValidationException ex) {
+                JOptionPane.showMessageDialog(frame, ex.getMessage());
                 return;
             }
 
@@ -2475,6 +2507,13 @@ public class AdminDashboard extends Dashboard {
             return;
         }
 
+        try {
+            validateAlphaNumericText("Role Designation", designationField.getText().trim());
+        } catch (ValidationException e) {
+            JOptionPane.showMessageDialog(frame, e.getMessage());
+            return;
+        }
+
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement ps = con.prepareStatement(
                     "INSERT INTO Job_Role (role_id, designation, work_hours, base_salary, max_bonus, min_exp, job_type, total_leaves, dept_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -2554,6 +2593,13 @@ public class AdminDashboard extends Dashboard {
 
             int result = JOptionPane.showConfirmDialog(frame, panel, "Edit Role #" + roleId, JOptionPane.OK_CANCEL_OPTION);
             if (result != JOptionPane.OK_OPTION) {
+                return;
+            }
+
+            try {
+                validateAlphaNumericText("Role Designation", designationField.getText().trim());
+            } catch (ValidationException ex) {
+                JOptionPane.showMessageDialog(frame, ex.getMessage());
                 return;
             }
 
@@ -2795,6 +2841,17 @@ public class AdminDashboard extends Dashboard {
             }
         } catch (DateTimeParseException e) {
             throw new ValidationException("Please enter birthdate in YYYY-MM-DD format");
+        }
+    }
+
+    private void validateAlphaNumericText(String fieldName, String value) throws ValidationException {
+        if (value == null || value.trim().isEmpty()) {
+            throw new ValidationException(fieldName + " is required");
+        }
+
+        String normalized = value.trim();
+        if (!normalized.matches("^(?=.*[A-Za-z])[A-Za-z0-9 ]+$")) {
+            throw new ValidationException(fieldName + " must be alphanumeric, include at least one letter, and contain only letters, numbers, and spaces");
         }
     }
 }
