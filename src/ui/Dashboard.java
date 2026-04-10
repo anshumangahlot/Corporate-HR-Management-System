@@ -3,11 +3,7 @@ package ui;
 import models.User;
 import javax.swing.*;
 
-/**
- * Abstract Dashboard Class
- * Demonstrates inheritance and polymorphism (CO2)
- * Provides common functionality for all dashboard types
- */
+
 public abstract class Dashboard {
     // RBR
     public static final String APPLICATION_NAME = "HR Management System";

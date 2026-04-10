@@ -9,10 +9,6 @@ import exceptions.DatabaseException;
 import javax.swing.*;
 import java.awt.*;
 
-/**
- * LoginUI Class
- * Demonstrates comprehensive error handling with custom exceptions
- */
 public class LoginUI {
 
     public static void main(String[] args) {

@@ -14,11 +14,6 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import models.User;
 
-/**
- * AdminDashboard Class
- * Demonstrates inheritance from abstract Dashboard class (CO2)
- * Shows polymorphism through different implementation than EmployeeDashboard
- */
 public class AdminDashboard extends Dashboard {
 
     private JPanel contentPanel;
@@ -2571,7 +2566,16 @@ public class AdminDashboard extends Dashboard {
         JTextField minExpField = new JTextField();
         JTextField jobTypeField = new JTextField();
         JTextField totalLeavesField = new JTextField();
-        JTextField deptIdField = new JTextField();
+        JComboBox<IdNameOption> deptField = new JComboBox<>();
+
+        try (Connection con = DBConnection.getConnection()) {
+            deptField.addItem(new IdNameOption(-1, "None"));
+            loadDepartmentOptions(con, deptField);
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(frame, "Error loading departments: " + e.getMessage());
+            return;
+        }
 
         panel.add(new JLabel("Role ID:"));
         panel.add(idField);
@@ -2589,8 +2593,8 @@ public class AdminDashboard extends Dashboard {
         panel.add(jobTypeField);
         panel.add(new JLabel("Total Leaves:"));
         panel.add(totalLeavesField);
-        panel.add(new JLabel("Department ID (optional):"));
-        panel.add(deptIdField);
+        panel.add(new JLabel("Department (optional):"));
+        panel.add(deptField);
 
         int result = JOptionPane.showConfirmDialog(frame, panel, "Add Role", JOptionPane.OK_CANCEL_OPTION);
         if (result != JOptionPane.OK_OPTION) {
@@ -2622,10 +2626,11 @@ public class AdminDashboard extends Dashboard {
             ps.setInt(6, minExpField.getText().trim().isEmpty() ? 0 : Integer.parseInt(minExpField.getText().trim()));
             ps.setString(7, jobTypeField.getText().trim());
             ps.setInt(8, totalLeavesField.getText().trim().isEmpty() ? 0 : Integer.parseInt(totalLeavesField.getText().trim()));
-            if (deptIdField.getText().trim().isEmpty()) {
+            IdNameOption selectedDepartment = (IdNameOption) deptField.getSelectedItem();
+            if (selectedDepartment == null || selectedDepartment.id == -1) {
                 ps.setNull(9, java.sql.Types.INTEGER);
             } else {
-                ps.setInt(9, Integer.parseInt(deptIdField.getText().trim()));
+                ps.setInt(9, selectedDepartment.id);
             }
 
             ps.executeUpdate();

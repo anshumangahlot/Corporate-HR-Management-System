@@ -9,11 +9,7 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import models.User;
 
-/**
- * EmployeeDashboard Class
- * Demonstrates inheritance from abstract Dashboard class (CO2)
- * Shows polymorphism through different implementation than AdminDashboard
- */
+
 public class EmployeeDashboard extends Dashboard {
 
     private JPanel contentPanel;
