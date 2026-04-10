@@ -449,7 +449,7 @@ public class AdminDashboard extends Dashboard {
         contentPanel.setLayout(new BorderLayout());
 
         DefaultTableModel model = new DefaultTableModel(
-                new String[]{"ID", "Date", "In", "Out", "Shift", "Remark", "Employee"}, 0
+            new String[]{"ID", "Date", "In", "Out", "Shift", "Employee"}, 0
         );
         JTable table = new JTable(model);
         styleTable(table);
@@ -469,7 +469,6 @@ public class AdminDashboard extends Dashboard {
                         rs.getTime("in_time"),
                         rs.getTime("out_time"),
                         rs.getString("shift"),
-                        rs.getString("remark"),
                         rs.getString("Emp_name")
                 });
             }

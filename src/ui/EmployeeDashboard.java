@@ -333,7 +333,7 @@ public class EmployeeDashboard extends Dashboard {
         headerPanel.add(headerLabel);
 
         DefaultTableModel model = new DefaultTableModel(
-                new String[]{"Date", "In", "Out", "Shift", "Remark"}, 0
+            new String[]{"Date", "In", "Out", "Shift"}, 0
         ) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -353,7 +353,7 @@ public class EmployeeDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement ps = con.prepareStatement(
-                    "SELECT work_date, in_time, out_time, shift, remark " +
+                "SELECT work_date, in_time, out_time, shift " +
                     "FROM attendance_log WHERE EmpID = ? ORDER BY work_date DESC, in_time DESC"
             );
             ps.setInt(1, empId);
@@ -365,8 +365,7 @@ public class EmployeeDashboard extends Dashboard {
                         rs.getDate("work_date"),
                         rs.getTime("in_time"),
                         rs.getTime("out_time"),
-                        rs.getString("shift"),
-                        rs.getString("remark")
+                    rs.getString("shift")
                 });
             }
 
@@ -485,6 +484,11 @@ public class EmployeeDashboard extends Dashboard {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
             LocalDate startDate = LocalDate.parse(start.trim(), formatter);
             LocalDate endDate = LocalDate.parse(end.trim(), formatter);
+
+            if (startDate.isBefore(LocalDate.now())) {
+                JOptionPane.showMessageDialog(frame, "Start date cannot be before current date");
+                return;
+            }
 
             if (!endDate.isAfter(startDate)) {
                 JOptionPane.showMessageDialog(frame, "End date must be after start date");
