@@ -9,6 +9,8 @@ import java.time.format.DateTimeParseException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -301,7 +303,7 @@ public class AdminDashboard extends Dashboard {
         contentPanel.setLayout(new BorderLayout());
 
         DefaultTableModel model = new DefaultTableModel(
-                new String[]{"Role ID", "Designation", "Hours", "Base Salary", "Max Bonus", "Min Exp", "Job Type", "Total Leaves", "Department"}, 0
+            new String[]{"Role ID", "Designation", "Hours", "Base Salary", "Max Bonus", "Min Exp", "Job Type", "Total Leaves", "Department", "Skills"}, 0
         );
         JTable table = new JTable(model);
         styleTable(table);
@@ -309,9 +311,13 @@ public class AdminDashboard extends Dashboard {
         try (Connection con = DBConnection.getConnection()) {
             // DRL-Select
             String query = "SELECT jr.role_id, jr.designation, jr.work_hours, jr.base_salary, jr.max_bonus, " +
-                    "jr.min_exp, jr.job_type, jr.total_leaves, d.d_name " +
+                    "jr.min_exp, jr.job_type, jr.total_leaves, d.d_name, " +
+                    "COALESCE(GROUP_CONCAT(DISTINCT rs.skill_name ORDER BY rs.skill_name SEPARATOR ', '), '') AS skills " +
                     "FROM Job_Role jr " +
                     "LEFT JOIN Department d ON jr.dept_id = d.department_id " +
+                    "LEFT JOIN Role_Skills rs ON jr.role_id = rs.role_id " +
+                    "GROUP BY jr.role_id, jr.designation, jr.work_hours, jr.base_salary, jr.max_bonus, " +
+                    "jr.min_exp, jr.job_type, jr.total_leaves, d.d_name " +
                     "ORDER BY jr.role_id";
             PreparedStatement ps = con.prepareStatement(query);
             ResultSet rs = ps.executeQuery();
@@ -326,7 +332,8 @@ public class AdminDashboard extends Dashboard {
                         rs.getInt("min_exp"),
                         rs.getString("job_type"),
                         rs.getInt("total_leaves"),
-                        rs.getString("d_name")
+                        rs.getString("d_name"),
+                        rs.getString("skills")
                 });
             }
         } catch (Exception e) {
@@ -2557,7 +2564,7 @@ public class AdminDashboard extends Dashboard {
     }
 
     private void addRole() {
-        JPanel panel = new JPanel(new GridLayout(9, 2, 5, 5));
+        JPanel panel = new JPanel(new GridLayout(10, 2, 5, 5));
         JTextField idField = new JTextField();
         JTextField designationField = new JTextField();
         JTextField hoursField = new JTextField();
@@ -2566,6 +2573,7 @@ public class AdminDashboard extends Dashboard {
         JTextField minExpField = new JTextField();
         JTextField jobTypeField = new JTextField();
         JTextField totalLeavesField = new JTextField();
+        JTextField skillsField = new JTextField();
         JComboBox<IdNameOption> deptField = new JComboBox<>();
 
         try (Connection con = DBConnection.getConnection()) {
@@ -2593,6 +2601,8 @@ public class AdminDashboard extends Dashboard {
         panel.add(jobTypeField);
         panel.add(new JLabel("Total Leaves:"));
         panel.add(totalLeavesField);
+        panel.add(new JLabel("Skills (comma separated):"));
+        panel.add(skillsField);
         panel.add(new JLabel("Department (optional):"));
         panel.add(deptField);
 
@@ -2614,28 +2624,63 @@ public class AdminDashboard extends Dashboard {
         }
 
         try (Connection con = DBConnection.getConnection()) {
-            PreparedStatement ps = con.prepareStatement(
-                    // DML-Insert
-                    "INSERT INTO Job_Role (role_id, designation, work_hours, base_salary, max_bonus, min_exp, job_type, total_leaves, dept_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            );
-            ps.setInt(1, Integer.parseInt(idField.getText().trim()));
-            ps.setString(2, designationField.getText().trim());
-            ps.setInt(3, hoursField.getText().trim().isEmpty() ? 0 : Integer.parseInt(hoursField.getText().trim()));
-            ps.setDouble(4, baseSalaryField.getText().trim().isEmpty() ? 0.0 : Double.parseDouble(baseSalaryField.getText().trim()));
-            ps.setDouble(5, maxBonusField.getText().trim().isEmpty() ? 0.0 : Double.parseDouble(maxBonusField.getText().trim()));
-            ps.setInt(6, minExpField.getText().trim().isEmpty() ? 0 : Integer.parseInt(minExpField.getText().trim()));
-            ps.setString(7, jobTypeField.getText().trim());
-            ps.setInt(8, totalLeavesField.getText().trim().isEmpty() ? 0 : Integer.parseInt(totalLeavesField.getText().trim()));
-            IdNameOption selectedDepartment = (IdNameOption) deptField.getSelectedItem();
-            if (selectedDepartment == null || selectedDepartment.id == -1) {
-                ps.setNull(9, java.sql.Types.INTEGER);
-            } else {
-                ps.setInt(9, selectedDepartment.id);
-            }
+            con.setAutoCommit(false);
+            try {
+                PreparedStatement ps = con.prepareStatement(
+                        // DML-Insert
+                        "INSERT INTO Job_Role (role_id, designation, work_hours, base_salary, max_bonus, min_exp, job_type, total_leaves, dept_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+                int roleId = Integer.parseInt(idField.getText().trim());
+                ps.setInt(1, roleId);
+                ps.setString(2, designationField.getText().trim());
+                ps.setInt(3, hoursField.getText().trim().isEmpty() ? 0 : Integer.parseInt(hoursField.getText().trim()));
+                ps.setDouble(4, baseSalaryField.getText().trim().isEmpty() ? 0.0 : Double.parseDouble(baseSalaryField.getText().trim()));
+                ps.setDouble(5, maxBonusField.getText().trim().isEmpty() ? 0.0 : Double.parseDouble(maxBonusField.getText().trim()));
+                ps.setInt(6, minExpField.getText().trim().isEmpty() ? 0 : Integer.parseInt(minExpField.getText().trim()));
+                ps.setString(7, jobTypeField.getText().trim());
+                ps.setInt(8, totalLeavesField.getText().trim().isEmpty() ? 0 : Integer.parseInt(totalLeavesField.getText().trim()));
+                IdNameOption selectedDepartment = (IdNameOption) deptField.getSelectedItem();
+                if (selectedDepartment == null || selectedDepartment.id == -1) {
+                    ps.setNull(9, java.sql.Types.INTEGER);
+                } else {
+                    ps.setInt(9, selectedDepartment.id);
+                }
 
-            ps.executeUpdate();
-            JOptionPane.showMessageDialog(frame, "Role added successfully");
-            showRoles();
+                ps.executeUpdate();
+
+                String rawSkills = skillsField.getText().trim();
+                if (!rawSkills.isEmpty()) {
+                    Set<String> skillSet = new LinkedHashSet<>();
+                    for (String part : rawSkills.split(",")) {
+                        String skill = part.trim();
+                        if (!skill.isEmpty()) {
+                            skillSet.add(skill);
+                        }
+                    }
+
+                    if (!skillSet.isEmpty()) {
+                        PreparedStatement skillPs = con.prepareStatement(
+                                // DML-Insert
+                                "INSERT INTO Role_Skills (role_id, skill_name) VALUES (?, ?)"
+                        );
+                        for (String skill : skillSet) {
+                            skillPs.setInt(1, roleId);
+                            skillPs.setString(2, skill);
+                            skillPs.addBatch();
+                        }
+                        skillPs.executeBatch();
+                    }
+                }
+
+                con.commit();
+                con.setAutoCommit(true);
+                JOptionPane.showMessageDialog(frame, "Role added successfully");
+                showRoles();
+            } catch (Exception ex) {
+                con.rollback();
+                con.setAutoCommit(true);
+                throw ex;
+            }
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(frame, "Please enter valid numeric values for numeric fields");
         } catch (Exception e) {
