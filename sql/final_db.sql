@@ -185,7 +185,12 @@ CREATE TABLE Meeting (
     dept_id INT,
     FOREIGN KEY (dept_id) REFERENCES Department(department_id)
 );
-
+CREATE TABLE Role_Skills (
+    role_id INT,
+    skill_name VARCHAR(50),
+    PRIMARY KEY (role_id, skill_name),
+    FOREIGN KEY (role_id) REFERENCES Job_Role(role_id)
+);
 -- Procedures
 
 DELIMITER //

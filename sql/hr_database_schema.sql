@@ -13,7 +13,8 @@ CREATE TABLE Zip_Directory (
 CREATE TABLE Department (
     department_id INT PRIMARY KEY,
     d_name VARCHAR(50),
-    d_head VARCHAR(50)
+    d_head VARCHAR(50),
+    FOREIGN KEY (d_head) REFERENCES Employee(EmpID)
 );
 
 CREATE TABLE users (
@@ -78,25 +79,7 @@ CREATE TABLE Full_Time (
     FOREIGN KEY (EmpID) REFERENCES Employee(EmpID)
 );
 
--- 5. BRANCH
 
-CREATE TABLE Branch (
-    branch_id INT PRIMARY KEY,
-    branch_name VARCHAR(50),
-    branch_type VARCHAR(50),
-    street VARCHAR(100),
-    zip_code INT,
-    mgr_id INT,
-    FOREIGN KEY (mgr_id) REFERENCES Employee(EmpID)
-);
-
-CREATE TABLE Branch_Dept (
-    branch_id INT,
-    dept_id INT,
-    PRIMARY KEY (branch_id, dept_id),
-    FOREIGN KEY (branch_id) REFERENCES Branch(branch_id),
-    FOREIGN KEY (dept_id) REFERENCES Department(department_id)
-);
 
 -- 6. ROLE SKILLS
 
@@ -160,14 +143,6 @@ CREATE TABLE Payroll (
     FOREIGN KEY (EmpID) REFERENCES Employee(EmpID)
 );
 
-CREATE TABLE Salary_Breakdown (
-    breakdown_id INT PRIMARY KEY,
-    component_name VARCHAR(50),
-    amount FLOAT,
-    type VARCHAR(20),
-    payroll_id INT,
-    FOREIGN KEY (payroll_id) REFERENCES Payroll(payroll_id)
-);
 
 -- 10. PROJECTS
 
@@ -196,17 +171,6 @@ CREATE TABLE Employee_Projects (
 
 -- 11. RECRUITMENT
 
-CREATE TABLE Recruitment (
-    recruitment_id INT PRIMARY KEY,
-    hire_date DATE,
-    hire_status VARCHAR(20),
-    EmpID INT,
-    recruiter_id INT,
-    role_id INT,
-    FOREIGN KEY (EmpID) REFERENCES Employee(EmpID),
-    FOREIGN KEY (recruiter_id) REFERENCES Employee(EmpID),
-    FOREIGN KEY (role_id) REFERENCES Job_Role(role_id)
-);
 
 -- 12. MEETING
 
