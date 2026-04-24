@@ -7,6 +7,11 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import models.CasualLeave;
+import models.LeaveDetail;
+import models.LeaveType;
+import models.PaidLeave;
+import models.SickLeave;
 import models.User;
 
 
@@ -160,7 +165,19 @@ public class EmployeeDashboard extends Dashboard {
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement ps = con.prepareStatement(
                     // DRL-Select
-                    "SELECT EmpID, Emp_name, DOB, Gender, Email, Street FROM Employee WHERE EmpID = ?"
+                    "SELECT e.EmpID, e.Emp_name, e.DOB, e.Gender, e.Email, e.Street, " +
+                    "CASE " +
+                    "WHEN i.EmpID IS NOT NULL THEN 'Intern' " +
+                    "WHEN ft.EmpID IS NOT NULL THEN 'Full Time' " +
+                    "ELSE 'Unspecified' END AS employment_type, " +
+                    "CASE " +
+                    "WHEN i.EmpID IS NOT NULL THEN CONCAT('From ', DATE_FORMAT(i.Internship_StartDate, '%Y-%m-%d'), ' to ', DATE_FORMAT(i.Internship_EndDate, '%Y-%m-%d')) " +
+                    "WHEN ft.EmpID IS NOT NULL THEN CONCAT('PF: ', COALESCE(ft.PF_No, 'N/A')) " +
+                    "ELSE 'N/A' END AS employment_info " +
+                    "FROM Employee e " +
+                    "LEFT JOIN Intern i ON e.EmpID = i.EmpID " +
+                    "LEFT JOIN Full_Time ft ON e.EmpID = ft.EmpID " +
+                    "WHERE e.EmpID = ?"
             );
             ps.setInt(1, empId);
 
@@ -184,6 +201,8 @@ public class EmployeeDashboard extends Dashboard {
                 addProfileField(profilePanel, "DOB:", rs.getDate("DOB") != null ? rs.getDate("DOB").toString() : "N/A");
                 addProfileField(profilePanel, "Email:", rs.getString("Email"));
                 addProfileField(profilePanel, "Address:", rs.getString("Street"));
+                addProfileField(profilePanel, "Employment Type:", rs.getString("employment_type"));
+                addProfileField(profilePanel, "Employment Info:", rs.getString("employment_info"));
 
                 // DRL-Select
                 PreparedStatement phonePs = con.prepareStatement("SELECT Phone_Number FROM Employee_Phones WHERE EmpID = ? ORDER BY Phone_Number");
@@ -478,6 +497,25 @@ public class EmployeeDashboard extends Dashboard {
     }
 
     private void applyLeave() {
+        String[] leaveOptions = {
+            LeaveType.SICK.getLabel(),
+            LeaveType.CASUAL.getLabel(),
+            LeaveType.PAID.getLabel()
+        };
+        String selectedType = (String) JOptionPane.showInputDialog(
+                frame,
+                "Select Leave Type",
+                "Apply Leave",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                leaveOptions,
+                leaveOptions[0]
+        );
+
+        if (selectedType == null) {
+            return;
+        }
+
         String start = JOptionPane.showInputDialog("Start Date (YYYY-MM-DD)");
         String end = JOptionPane.showInputDialog("End Date (YYYY-MM-DD)");
 
@@ -506,6 +544,11 @@ public class EmployeeDashboard extends Dashboard {
         }
 
         int empId = getEmployeeId();
+        LeaveDetail leaveDetail = createLeaveDetail(selectedType);
+
+        if (leaveDetail == null) {
+            return;
+        }
 
         try (Connection con = DBConnection.getConnection()) {
             // Get next leave request ID
@@ -528,11 +571,60 @@ public class EmployeeDashboard extends Dashboard {
             ps.setInt(4, empId);
             ps.executeUpdate();
 
+                leaveDetail.save(con, nextId);
+
             JOptionPane.showMessageDialog(frame, "Leave Applied");
 
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(frame, "Error applying leave: " + e.getMessage());
+        }
+    }
+
+    private LeaveDetail createLeaveDetail(String selectedType) {
+        LeaveType leaveType;
+        try {
+            leaveType = LeaveType.fromLabel(selectedType);
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(frame, "Invalid leave type selected");
+            return null;
+        }
+
+        switch (leaveType) {
+            case SICK:
+                String doctorNote = JOptionPane.showInputDialog("Doctor Note");
+                if (doctorNote == null || doctorNote.trim().isEmpty()) {
+                    JOptionPane.showMessageDialog(frame, "Doctor note is required for sick leave");
+                    return null;
+                }
+                return new SickLeave(doctorNote.trim());
+            case CASUAL:
+                String reason = JOptionPane.showInputDialog("Reason");
+                if (reason == null || reason.trim().isEmpty()) {
+                    JOptionPane.showMessageDialog(frame, "Reason is required for casual leave");
+                    return null;
+                }
+                return new CasualLeave(reason.trim());
+            case PAID:
+                String balanceInput = JOptionPane.showInputDialog("Balance Used (days)");
+                if (balanceInput == null || balanceInput.trim().isEmpty()) {
+                    JOptionPane.showMessageDialog(frame, "Balance used is required for paid leave");
+                    return null;
+                }
+                try {
+                    int balanceUsed = Integer.parseInt(balanceInput.trim());
+                    if (balanceUsed <= 0) {
+                        JOptionPane.showMessageDialog(frame, "Balance used must be greater than zero");
+                        return null;
+                    }
+                    return new PaidLeave(balanceUsed);
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(frame, "Balance used must be a number");
+                    return null;
+                }
+            default:
+                JOptionPane.showMessageDialog(frame, "Unsupported leave type");
+                return null;
         }
     }
 
@@ -549,7 +641,7 @@ public class EmployeeDashboard extends Dashboard {
         headerPanel.add(headerLabel);
 
         DefaultTableModel model = new DefaultTableModel(
-                new String[]{"Start Date", "End Date", "Status"}, 0
+            new String[]{"Leave Type", "Extra Info", "Start Date", "End Date", "Status"}, 0
         ) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -565,7 +657,23 @@ public class EmployeeDashboard extends Dashboard {
         try (Connection con = DBConnection.getConnection()) {
             PreparedStatement ps = con.prepareStatement(
                     // DRL-Select
-                    "SELECT start_date, end_date, status FROM Leave_Request WHERE EmpID = ? ORDER BY start_date DESC"
+                    "SELECT " +
+                    "CASE " +
+                    "WHEN sl.leave_id IS NOT NULL THEN 'Sick Leave' " +
+                    "WHEN cl.leave_id IS NOT NULL THEN 'Casual Leave' " +
+                    "WHEN pl.leave_id IS NOT NULL THEN 'Paid Leave' " +
+                    "ELSE 'Uncategorized' END AS leave_type, " +
+                    "CASE " +
+                    "WHEN sl.leave_id IS NOT NULL THEN sl.DoctorNote " +
+                    "WHEN cl.leave_id IS NOT NULL THEN cl.Reason " +
+                    "WHEN pl.leave_id IS NOT NULL THEN CONCAT('Balance Used: ', pl.Balance_Used) " +
+                    "ELSE '-' END AS leave_info, " +
+                    "lr.start_date, lr.end_date, lr.status " +
+                    "FROM Leave_Request lr " +
+                    "LEFT JOIN Sick_Leave sl ON lr.leave_id = sl.leave_id " +
+                    "LEFT JOIN Casual_Leave cl ON lr.leave_id = cl.leave_id " +
+                    "LEFT JOIN Paid_Leave pl ON lr.leave_id = pl.leave_id " +
+                    "WHERE lr.EmpID = ? ORDER BY lr.start_date DESC"
             );
             ps.setInt(1, empId);
 
@@ -573,6 +681,8 @@ public class EmployeeDashboard extends Dashboard {
 
             while (rs.next()) {
                 model.addRow(new Object[]{
+                    rs.getString("leave_type"),
+                    rs.getString("leave_info"),
                         rs.getDate("start_date"),
                         rs.getDate("end_date"),
                         rs.getString("status")

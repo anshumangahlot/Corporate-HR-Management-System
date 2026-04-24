@@ -169,9 +169,6 @@ CREATE TABLE Employee_Projects (
     FOREIGN KEY (project_id) REFERENCES Projects(project_id)
 );
 
--- 11. RECRUITMENT
-
-
 -- 12. MEETING
 
 CREATE TABLE Meeting (

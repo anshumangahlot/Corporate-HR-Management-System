@@ -183,7 +183,7 @@ public class AdminDashboard extends Dashboard {
         contentPanel.setLayout(new BorderLayout());
 
         DefaultTableModel model = new DefaultTableModel(
-                new String[]{"ID", "Name", "Email", "Phone", "Department", "Role"}, 0
+            new String[]{"ID", "Name", "Email", "Phone", "Department", "Role", "Employment Type", "Employment Info"}, 0
         );
         JTable table = new JTable(model);
         styleTable(table);
@@ -192,12 +192,22 @@ public class AdminDashboard extends Dashboard {
             // DRL-Select
             String query = "SELECT e.EmpID, e.Emp_name, e.Email, " +
                     "COALESCE(GROUP_CONCAT(DISTINCT ep.Phone_Number SEPARATOR ', '), 'Not available') AS phones, " +
-                    "d.d_name, j.designation " +
+                    "d.d_name, j.designation, " +
+                    "CASE " +
+                    "WHEN i.EmpID IS NOT NULL THEN 'Intern' " +
+                    "WHEN ft.EmpID IS NOT NULL THEN 'Full Time' " +
+                    "ELSE 'Unspecified' END AS employment_type, " +
+                    "CASE " +
+                    "WHEN i.EmpID IS NOT NULL THEN CONCAT('From ', DATE_FORMAT(i.Internship_StartDate, '%Y-%m-%d'), ' to ', DATE_FORMAT(i.Internship_EndDate, '%Y-%m-%d')) " +
+                    "WHEN ft.EmpID IS NOT NULL THEN CONCAT('PF: ', COALESCE(ft.PF_No, 'N/A')) " +
+                    "ELSE 'N/A' END AS employment_info " +
                     "FROM Employee e " +
                     "LEFT JOIN Employee_Phones ep ON e.EmpID = ep.EmpID " +
                     "LEFT JOIN Department d ON e.department_id = d.department_id " +
                     "LEFT JOIN Job_Role j ON e.role_id = j.role_id " +
-                    "GROUP BY e.EmpID, e.Emp_name, e.Email, d.d_name, j.designation";
+                    "LEFT JOIN Intern i ON e.EmpID = i.EmpID " +
+                    "LEFT JOIN Full_Time ft ON e.EmpID = ft.EmpID " +
+                    "GROUP BY e.EmpID, e.Emp_name, e.Email, d.d_name, j.designation, i.EmpID, i.Internship_StartDate, i.Internship_EndDate, ft.EmpID, ft.PF_No";
             PreparedStatement ps = con.prepareStatement(query);
             ResultSet rs = ps.executeQuery();
 
@@ -208,7 +218,9 @@ public class AdminDashboard extends Dashboard {
                         rs.getString("Email"),
                         rs.getString("phones"),
                         rs.getString("d_name"),
-                        rs.getString("designation")
+                        rs.getString("designation"),
+                        rs.getString("employment_type"),
+                        rs.getString("employment_info")
                 });
             }
         } catch (Exception e) {
@@ -371,7 +383,7 @@ public class AdminDashboard extends Dashboard {
         contentPanel.setLayout(new BorderLayout());
 
         DefaultTableModel model = new DefaultTableModel(
-                new String[]{"Leave ID", "Employee", "Start", "End", "Status"}, 0
+            new String[]{"Leave ID", "Employee", "Leave Type", "Extra Info", "Start", "End", "Status"}, 0
         ) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -383,9 +395,23 @@ public class AdminDashboard extends Dashboard {
 
         try (Connection con = DBConnection.getConnection()) {
             // DRL-Select
-            String query = "SELECT lr.leave_id, e.Emp_name, lr.start_date, lr.end_date, lr.status " +
+                String query = "SELECT lr.leave_id, e.Emp_name, " +
+                    "CASE " +
+                    "WHEN sl.leave_id IS NOT NULL THEN 'Sick Leave' " +
+                    "WHEN cl.leave_id IS NOT NULL THEN 'Casual Leave' " +
+                    "WHEN pl.leave_id IS NOT NULL THEN 'Paid Leave' " +
+                    "ELSE 'Uncategorized' END AS leave_type, " +
+                    "CASE " +
+                    "WHEN sl.leave_id IS NOT NULL THEN sl.DoctorNote " +
+                    "WHEN cl.leave_id IS NOT NULL THEN cl.Reason " +
+                    "WHEN pl.leave_id IS NOT NULL THEN CONCAT('Balance Used: ', pl.Balance_Used) " +
+                    "ELSE '-' END AS leave_info, " +
+                    "lr.start_date, lr.end_date, lr.status " +
                     "FROM Leave_Request lr " +
-                    "LEFT JOIN Employee e ON lr.EmpID = e.EmpID";
+                    "LEFT JOIN Employee e ON lr.EmpID = e.EmpID " +
+                    "LEFT JOIN Sick_Leave sl ON lr.leave_id = sl.leave_id " +
+                    "LEFT JOIN Casual_Leave cl ON lr.leave_id = cl.leave_id " +
+                    "LEFT JOIN Paid_Leave pl ON lr.leave_id = pl.leave_id";
             PreparedStatement ps = con.prepareStatement(query);
             ResultSet rs = ps.executeQuery();
 
@@ -393,6 +419,8 @@ public class AdminDashboard extends Dashboard {
                 model.addRow(new Object[]{
                         rs.getInt("leave_id"),
                         rs.getString("Emp_name"),
+                    rs.getString("leave_type"),
+                    rs.getString("leave_info"),
                         rs.getDate("start_date"),
                         rs.getDate("end_date"),
                         rs.getString("status")
@@ -1728,6 +1756,89 @@ public class AdminDashboard extends Dashboard {
             return;
         }
 
+        JComboBox<String> employmentTypeField = new JComboBox<>(new String[]{"Full Time", "Intern"});
+        JPanel employmentPanel = new JPanel(new GridLayout(1, 2, 5, 5));
+        employmentPanel.add(new JLabel("Employment Type:"));
+        employmentPanel.add(employmentTypeField);
+
+        int employmentResult = JOptionPane.showConfirmDialog(
+                frame,
+                employmentPanel,
+                "Employment Type",
+                JOptionPane.OK_CANCEL_OPTION
+        );
+        if (employmentResult != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        String employmentType = (String) employmentTypeField.getSelectedItem();
+        String pfNo = "";
+        String internshipStart = "";
+        String internshipEnd = "";
+
+        if ("Intern".equals(employmentType)) {
+            JTextField internshipStartField = new JTextField("YYYY-MM-DD");
+            JTextField internshipEndField = new JTextField("YYYY-MM-DD");
+            JPanel internPanel = new JPanel(new GridLayout(2, 2, 5, 5));
+            internPanel.add(new JLabel("Internship Start (YYYY-MM-DD):"));
+            internPanel.add(internshipStartField);
+            internPanel.add(new JLabel("Internship End (YYYY-MM-DD):"));
+            internPanel.add(internshipEndField);
+
+            int internResult = JOptionPane.showConfirmDialog(
+                    frame,
+                    internPanel,
+                    "Intern Details",
+                    JOptionPane.OK_CANCEL_OPTION
+            );
+            if (internResult != JOptionPane.OK_OPTION) {
+                return;
+            }
+
+            internshipStart = internshipStartField.getText().trim();
+            internshipEnd = internshipEndField.getText().trim();
+
+            if (internshipStart.isEmpty() || internshipEnd.isEmpty()
+                    || "YYYY-MM-DD".equalsIgnoreCase(internshipStart)
+                    || "YYYY-MM-DD".equalsIgnoreCase(internshipEnd)) {
+                JOptionPane.showMessageDialog(frame, "Internship start and end dates are required for Intern employees");
+                return;
+            }
+
+            try {
+                LocalDate startDate = LocalDate.parse(internshipStart);
+                LocalDate endDate = LocalDate.parse(internshipEnd);
+                if (endDate.isBefore(startDate)) {
+                    JOptionPane.showMessageDialog(frame, "Internship end date cannot be before start date");
+                    return;
+                }
+            } catch (DateTimeParseException e) {
+                JOptionPane.showMessageDialog(frame, "Invalid internship date format. Please use YYYY-MM-DD");
+                return;
+            }
+        } else {
+            JTextField pfNoField = new JTextField();
+            JPanel fullTimePanel = new JPanel(new GridLayout(1, 2, 5, 5));
+            fullTimePanel.add(new JLabel("PF Number:"));
+            fullTimePanel.add(pfNoField);
+
+            int fullTimeResult = JOptionPane.showConfirmDialog(
+                    frame,
+                    fullTimePanel,
+                    "Full Time Details",
+                    JOptionPane.OK_CANCEL_OPTION
+            );
+            if (fullTimeResult != JOptionPane.OK_OPTION) {
+                return;
+            }
+
+            pfNo = pfNoField.getText().trim();
+            if (pfNo.isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "PF Number is required for Full Time employees");
+                return;
+            }
+        }
+
         // RBR
         try (Connection con = DBConnection.getConnection()) {
             con.setAutoCommit(false);
@@ -1814,8 +1925,29 @@ public class AdminDashboard extends Dashboard {
             userPs.setInt(1, empId);
             userPs.setString(2, username);
             userPs.setString(3, password);
-                userPs.setString(4, "employee");
+            userPs.setString(4, "employee");
             userPs.executeUpdate();
+
+            if ("Intern".equals(employmentType)) {
+                try (PreparedStatement internPs = con.prepareStatement(
+                        // DML-Insert
+                        "INSERT INTO Intern (EmpID, Internship_StartDate, Internship_EndDate) VALUES (?, ?, ?)"
+                )) {
+                    internPs.setInt(1, empId);
+                    internPs.setString(2, internshipStart);
+                    internPs.setString(3, internshipEnd);
+                    internPs.executeUpdate();
+                }
+            } else {
+                try (PreparedStatement fullTimePs = con.prepareStatement(
+                        // DML-Insert
+                        "INSERT INTO Full_Time (EmpID, PF_No) VALUES (?, ?)"
+                )) {
+                    fullTimePs.setInt(1, empId);
+                    fullTimePs.setString(2, pfNo);
+                    fullTimePs.executeUpdate();
+                }
+            }
 
             con.commit();
             con.setAutoCommit(true);
@@ -1902,14 +2034,6 @@ public class AdminDashboard extends Dashboard {
             con.setAutoCommit(false);
 
             try {
-                try (PreparedStatement deleteSalaryBreakdownPs = con.prepareStatement(
-                        // DML-Delete
-                        "DELETE FROM Salary_Breakdown WHERE payroll_id IN (SELECT payroll_id FROM Payroll WHERE EmpID = ?)"
-                )) {
-                    deleteSalaryBreakdownPs.setInt(1, empId);
-                    deleteSalaryBreakdownPs.executeUpdate();
-                }
-
                 try (PreparedStatement deletePayrollPs = con.prepareStatement(
                         // DML-Delete
                         "DELETE FROM Payroll WHERE EmpID = ?"
@@ -1975,15 +2099,6 @@ public class AdminDashboard extends Dashboard {
                     deleteLeavePs.executeUpdate();
                 }
 
-                try (PreparedStatement deleteRecruitmentPs = con.prepareStatement(
-                        // DML-Delete
-                        "DELETE FROM Recruitment WHERE EmpID = ? OR recruiter_id = ?"
-                )) {
-                    deleteRecruitmentPs.setInt(1, empId);
-                    deleteRecruitmentPs.setInt(2, empId);
-                    deleteRecruitmentPs.executeUpdate();
-                }
-
                 try (PreparedStatement deleteInternPs = con.prepareStatement(
                         // DML-Delete
                         "DELETE FROM Intern WHERE EmpID = ?"
@@ -2000,36 +2115,12 @@ public class AdminDashboard extends Dashboard {
                     deleteFullTimePs.executeUpdate();
                 }
 
-                try (PreparedStatement deleteBranchDeptPs = con.prepareStatement(
-                        // DML-Delete
-                        "DELETE FROM Branch_Dept WHERE branch_id IN (SELECT branch_id FROM Branch WHERE mgr_id = ?)"
-                )) {
-                    deleteBranchDeptPs.setInt(1, empId);
-                    deleteBranchDeptPs.executeUpdate();
-                }
-
-                try (PreparedStatement deleteBranchesPs = con.prepareStatement(
-                        // DML-Delete
-                        "DELETE FROM Branch WHERE mgr_id = ?"
-                )) {
-                    deleteBranchesPs.setInt(1, empId);
-                    deleteBranchesPs.executeUpdate();
-                }
-
                 try (PreparedStatement deletePhonesPs = con.prepareStatement(
                         // DML-Delete
                         "DELETE FROM Employee_Phones WHERE EmpID = ?"
                 )) {
                     deletePhonesPs.setInt(1, empId);
                     deletePhonesPs.executeUpdate();
-                }
-
-                try (PreparedStatement deleteUserCredsPs = con.prepareStatement(
-                        // DML-Delete
-                        "DELETE FROM user_credentials WHERE EmpID = ?"
-                )) {
-                    deleteUserCredsPs.setInt(1, empId);
-                    deleteUserCredsPs.executeUpdate();
                 }
 
                 int rows;
@@ -2534,13 +2625,6 @@ public class AdminDashboard extends Dashboard {
             clearMeetings.setInt(1, deptId);
             clearMeetings.executeUpdate();
 
-            PreparedStatement deleteBranchLinks = con.prepareStatement(
-                    // DML-Delete
-                    "DELETE FROM Branch_Dept WHERE dept_id = ?"
-            );
-            deleteBranchLinks.setInt(1, deptId);
-            deleteBranchLinks.executeUpdate();
-
             PreparedStatement deleteDepartment = con.prepareStatement(
                     // DML-Delete
                     "DELETE FROM Department WHERE department_id = ?"
@@ -2711,7 +2795,7 @@ public class AdminDashboard extends Dashboard {
                 return;
             }
 
-            JPanel panel = new JPanel(new GridLayout(8, 2, 5, 5));
+            JPanel panel = new JPanel(new GridLayout(9, 2, 5, 5));
             JTextField designationField = new JTextField(rs.getString("designation"));
             JTextField hoursField = new JTextField(String.valueOf(rs.getInt("work_hours")));
             JTextField baseSalaryField = new JTextField(String.valueOf(rs.getDouble("base_salary")));
@@ -2719,7 +2803,18 @@ public class AdminDashboard extends Dashboard {
             JTextField minExpField = new JTextField(String.valueOf(rs.getInt("min_exp")));
             JTextField jobTypeField = new JTextField(rs.getString("job_type"));
             JTextField totalLeavesField = new JTextField(String.valueOf(rs.getInt("total_leaves")));
-            JTextField deptIdField = new JTextField(rs.getObject("dept_id") == null ? "" : String.valueOf(rs.getInt("dept_id")));
+            JComboBox<IdNameOption> deptField = new JComboBox<>();
+            int currentDeptId = rs.getObject("dept_id") == null ? -1 : rs.getInt("dept_id");
+            deptField.addItem(new IdNameOption(-1, "None"));
+            loadDepartmentOptions(con, deptField);
+            for (int i = 0; i < deptField.getItemCount(); i++) {
+                IdNameOption option = deptField.getItemAt(i);
+                if (option.id == currentDeptId) {
+                    deptField.setSelectedIndex(i);
+                    break;
+                }
+            }
+            JTextField skillsField = new JTextField(model.getValueAt(row, 9) == null ? "" : String.valueOf(model.getValueAt(row, 9)));
 
             panel.add(new JLabel("Designation:"));
             panel.add(designationField);
@@ -2735,8 +2830,10 @@ public class AdminDashboard extends Dashboard {
             panel.add(jobTypeField);
             panel.add(new JLabel("Total Leaves:"));
             panel.add(totalLeavesField);
-            panel.add(new JLabel("Department ID (optional):"));
-            panel.add(deptIdField);
+            panel.add(new JLabel("Skills (comma separated):"));
+            panel.add(skillsField);
+            panel.add(new JLabel("Department (optional):"));
+            panel.add(deptField);
 
             int result = JOptionPane.showConfirmDialog(frame, panel, "Edit Role #" + roleId, JOptionPane.OK_CANCEL_OPTION);
             if (result != JOptionPane.OK_OPTION) {
@@ -2750,30 +2847,73 @@ public class AdminDashboard extends Dashboard {
                 return;
             }
 
-            PreparedStatement updatePs = con.prepareStatement(
-                    // DML-Update
-                    "UPDATE Job_Role SET designation = ?, work_hours = ?, base_salary = ?, max_bonus = ?, min_exp = ?, job_type = ?, total_leaves = ?, dept_id = ? WHERE role_id = ?"
-            );
-            updatePs.setString(1, designationField.getText().trim());
-            updatePs.setInt(2, hoursField.getText().trim().isEmpty() ? 0 : Integer.parseInt(hoursField.getText().trim()));
-            updatePs.setDouble(3, baseSalaryField.getText().trim().isEmpty() ? 0.0 : Double.parseDouble(baseSalaryField.getText().trim()));
-            updatePs.setDouble(4, maxBonusField.getText().trim().isEmpty() ? 0.0 : Double.parseDouble(maxBonusField.getText().trim()));
-            updatePs.setInt(5, minExpField.getText().trim().isEmpty() ? 0 : Integer.parseInt(minExpField.getText().trim()));
-            updatePs.setString(6, jobTypeField.getText().trim());
-            updatePs.setInt(7, totalLeavesField.getText().trim().isEmpty() ? 0 : Integer.parseInt(totalLeavesField.getText().trim()));
-            if (deptIdField.getText().trim().isEmpty()) {
-                updatePs.setNull(8, java.sql.Types.INTEGER);
-            } else {
-                updatePs.setInt(8, Integer.parseInt(deptIdField.getText().trim()));
-            }
-            updatePs.setInt(9, roleId);
+            con.setAutoCommit(false);
+            try {
+                PreparedStatement updatePs = con.prepareStatement(
+                        // DML-Update
+                        "UPDATE Job_Role SET designation = ?, work_hours = ?, base_salary = ?, max_bonus = ?, min_exp = ?, job_type = ?, total_leaves = ?, dept_id = ? WHERE role_id = ?"
+                );
+                updatePs.setString(1, designationField.getText().trim());
+                updatePs.setInt(2, hoursField.getText().trim().isEmpty() ? 0 : Integer.parseInt(hoursField.getText().trim()));
+                updatePs.setDouble(3, baseSalaryField.getText().trim().isEmpty() ? 0.0 : Double.parseDouble(baseSalaryField.getText().trim()));
+                updatePs.setDouble(4, maxBonusField.getText().trim().isEmpty() ? 0.0 : Double.parseDouble(maxBonusField.getText().trim()));
+                updatePs.setInt(5, minExpField.getText().trim().isEmpty() ? 0 : Integer.parseInt(minExpField.getText().trim()));
+                updatePs.setString(6, jobTypeField.getText().trim());
+                updatePs.setInt(7, totalLeavesField.getText().trim().isEmpty() ? 0 : Integer.parseInt(totalLeavesField.getText().trim()));
+                IdNameOption selectedDepartment = (IdNameOption) deptField.getSelectedItem();
+                if (selectedDepartment == null || selectedDepartment.id == -1) {
+                    updatePs.setNull(8, java.sql.Types.INTEGER);
+                } else {
+                    updatePs.setInt(8, selectedDepartment.id);
+                }
+                updatePs.setInt(9, roleId);
 
-            int rows = updatePs.executeUpdate();
-            if (rows > 0) {
-                JOptionPane.showMessageDialog(frame, "Role updated successfully");
-                showRoles();
-            } else {
-                JOptionPane.showMessageDialog(frame, "No changes were made");
+                int rows = updatePs.executeUpdate();
+
+                PreparedStatement deleteSkillsPs = con.prepareStatement(
+                        // DML-Delete
+                        "DELETE FROM Role_Skills WHERE role_id = ?"
+                );
+                deleteSkillsPs.setInt(1, roleId);
+                deleteSkillsPs.executeUpdate();
+
+                String rawSkills = skillsField.getText().trim();
+                if (!rawSkills.isEmpty()) {
+                    Set<String> skillSet = new LinkedHashSet<>();
+                    for (String part : rawSkills.split(",")) {
+                        String skill = part.trim();
+                        if (!skill.isEmpty()) {
+                            skillSet.add(skill);
+                        }
+                    }
+
+                    if (!skillSet.isEmpty()) {
+                        PreparedStatement insertSkillsPs = con.prepareStatement(
+                                // DML-Insert
+                                "INSERT INTO Role_Skills (role_id, skill_name) VALUES (?, ?)"
+                        );
+                        for (String skill : skillSet) {
+                            insertSkillsPs.setInt(1, roleId);
+                            insertSkillsPs.setString(2, skill);
+                            insertSkillsPs.addBatch();
+                        }
+                        insertSkillsPs.executeBatch();
+                    }
+                }
+
+                con.commit();
+                con.setAutoCommit(true);
+
+                if (rows > 0) {
+                    JOptionPane.showMessageDialog(frame, "Role updated successfully");
+                    showRoles();
+                } else {
+                    JOptionPane.showMessageDialog(frame, "No changes were made");
+                }
+            } catch (Exception ex) {
+                con.rollback();
+                con.setAutoCommit(true);
+                throw ex;
             }
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(frame, "Please enter valid numeric values for numeric fields");
@@ -2811,13 +2951,6 @@ public class AdminDashboard extends Dashboard {
             );
             clearEmployees.setInt(1, roleId);
             clearEmployees.executeUpdate();
-
-            PreparedStatement clearRecruitment = con.prepareStatement(
-                    // DML-Update
-                    "UPDATE Recruitment SET role_id = NULL WHERE role_id = ?"
-            );
-            clearRecruitment.setInt(1, roleId);
-            clearRecruitment.executeUpdate();
 
             PreparedStatement deleteRoleSkills = con.prepareStatement(
                     // DML-Delete

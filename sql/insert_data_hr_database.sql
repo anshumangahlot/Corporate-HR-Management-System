@@ -62,9 +62,6 @@ INSERT INTO Projects VALUES (2, 'Web App', '2024-02-01', '2024-10-01', 'Ongoing'
 INSERT INTO Employee_Projects VALUES (1, 1, '2024-01-10', 'Lead', 40);
 INSERT INTO Employee_Projects VALUES (2, 2, '2024-02-10', 'Developer', 35);
 
-INSERT INTO Recruitment VALUES (1, '2024-01-15', 'Hired', 1, 2, 101);
-INSERT INTO Recruitment VALUES (2, '2024-02-20', 'Hired', 2, 1, 102);
-
 INSERT INTO Meeting VALUES (1, '2024-03-20', '10:00:00', 'Planning', 10);
 INSERT INTO Meeting VALUES (2, '2024-03-22', '11:00:00', 'Review', 20);
 
